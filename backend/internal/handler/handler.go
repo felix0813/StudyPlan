@@ -55,7 +55,7 @@ func New(store Store, objects ObjectStore, logger *slog.Logger) *Handler {
 
 func (h *Handler) Routes() http.Handler {
 	mux := http.NewServeMux()
-	mux.Handle("/study/", h.loggingMiddleware(http.HandlerFunc(h.route)))
+	mux.Handle("/study/", h.loggingMiddleware(h.corsMiddleware(http.HandlerFunc(h.route))))
 	return mux
 }
 
@@ -361,6 +361,19 @@ func (h *Handler) listFiles(w http.ResponseWriter, r *http.Request, path string)
 		return
 	}
 	writeJSON(w, http.StatusOK, files)
+}
+
+func (h *Handler) corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (h *Handler) loggingMiddleware(next http.Handler) http.Handler {
