@@ -90,7 +90,7 @@ func (s *Store) ReplacePlan(ctx context.Context, items []model.PlanItem) error {
 	}
 	for idx, item := range items {
 		id := newID("plan")
-		_, err := tx.Exec(ctx, `INSERT INTO plan_items (id, position, content, status) VALUES ($1, $2, $3, $4)`, id, idx+1, item.Content, item.Status)
+		_, err := tx.Exec(ctx, `INSERT INTO plan_items (id, position, content, status) VALUES ($1, $2, $3, $4)`, id, idx+1, item.Content, model.StatusToStorage(item.Status))
 		if err != nil {
 			return fmt.Errorf("insert plan item at position %d: %w", idx+1, err)
 		}
@@ -112,9 +112,16 @@ func (s *Store) ListPlan(ctx context.Context) ([]model.PlanItem, error) {
 	items := make([]model.PlanItem, 0)
 	for rows.Next() {
 		var item model.PlanItem
-		if err := rows.Scan(&item.ID, &item.Position, &item.Content, &item.Status); err != nil {
+		var storedStatus string
+		if err := rows.Scan(&item.ID, &item.Position, &item.Content, &storedStatus); err != nil {
 			return nil, fmt.Errorf("scan plan item: %w", err)
 		}
+		parsedStatus, ok := model.StatusFromStorage(storedStatus)
+		if !ok {
+			s.logger.Error("invalid plan item status from database", "id", item.ID, "status", storedStatus)
+			return nil, fmt.Errorf("invalid plan item status %q", storedStatus)
+		}
+		item.Status = parsedStatus
 		items = append(items, item)
 	}
 	return items, rows.Err()
@@ -132,26 +139,41 @@ func (s *Store) PlanSummary(ctx context.Context) (model.PlanSummary, error) {
 
 func (s *Store) NextPlanItem(ctx context.Context) (*model.PlanItem, error) {
 	var item model.PlanItem
-	err := s.pool.QueryRow(ctx, `SELECT id, position, content, status FROM plan_items WHERE status = 'incomplete' ORDER BY position ASC LIMIT 1`).Scan(&item.ID, &item.Position, &item.Content, &item.Status)
+	var storedStatus string
+	err := s.pool.QueryRow(ctx, `SELECT id, position, content, status FROM plan_items WHERE status = 'incomplete' ORDER BY position ASC LIMIT 1`).Scan(&item.ID, &item.Position, &item.Content, &storedStatus)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("query next plan item: %w", err)
 	}
+	parsedStatus, ok := model.StatusFromStorage(storedStatus)
+	if !ok {
+		s.logger.Error("invalid next plan item status from database", "id", item.ID, "status", storedStatus)
+		return nil, fmt.Errorf("invalid next plan item status %q", storedStatus)
+	}
+	item.Status = parsedStatus
 	return &item, nil
 }
 
-func (s *Store) UpdatePlanItemStatus(ctx context.Context, id, status string) (model.PlanItem, error) {
+func (s *Store) UpdatePlanItemStatus(ctx context.Context, id string, status bool) (model.PlanItem, error) {
 	var item model.PlanItem
-	err := s.pool.QueryRow(ctx, `UPDATE plan_items SET status = $2, updated_at = now() WHERE id = $1 RETURNING id, position, content, status`, id, status).Scan(&item.ID, &item.Position, &item.Content, &item.Status)
+	var storedStatus string
+	newStatus := model.StatusToStorage(status)
+	err := s.pool.QueryRow(ctx, `UPDATE plan_items SET status = $2, updated_at = now() WHERE id = $1 RETURNING id, position, content, status`, id, newStatus).Scan(&item.ID, &item.Position, &item.Content, &storedStatus)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return model.PlanItem{}, model.ErrNotFound
 	}
 	if err != nil {
 		return model.PlanItem{}, fmt.Errorf("update plan item status: %w", err)
 	}
-	s.logger.Info("plan item status updated", "id", id, "status", status)
+	parsedStatus, ok := model.StatusFromStorage(storedStatus)
+	if !ok {
+		s.logger.Error("invalid updated plan item status from database", "id", item.ID, "status", storedStatus)
+		return model.PlanItem{}, fmt.Errorf("invalid updated plan item status %q", storedStatus)
+	}
+	item.Status = parsedStatus
+	s.logger.Info("plan item status updated", "id", id, "status", newStatus)
 	return item, nil
 }
 
