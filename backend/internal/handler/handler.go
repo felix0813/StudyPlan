@@ -24,7 +24,7 @@ type Store interface {
 	ListPlan(context.Context) ([]model.PlanItem, error)
 	PlanSummary(context.Context) (model.PlanSummary, error)
 	NextPlanItem(context.Context) (*model.PlanItem, error)
-	UpdatePlanItemStatus(context.Context, string, string) (model.PlanItem, error)
+	UpdatePlanItemStatus(context.Context, string, bool) (model.PlanItem, error)
 	CreateTitle(context.Context, string) (model.Title, error)
 	ListTitles(context.Context) ([]model.Title, error)
 	UpdateTitle(context.Context, string, string) (model.Title, error)
@@ -121,6 +121,7 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) replacePlan(w http.ResponseWriter, r *http.Request) {
 	var items []model.PlanItem
 	if err := readJSON(r, &items); err != nil {
+		h.logger.Warn("invalid replace plan payload", "error", err)
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -132,13 +133,6 @@ func (h *Handler) replacePlan(w http.ResponseWriter, r *http.Request) {
 		items[i].Content = strings.TrimSpace(items[i].Content)
 		if items[i].Content == "" {
 			writeError(w, http.StatusBadRequest, fmt.Sprintf("content is required at index %d", i))
-			return
-		}
-		if items[i].Status == "" {
-			items[i].Status = model.StatusIncomplete
-		}
-		if !model.ValidStatus(items[i].Status) {
-			writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid status at index %d", i))
 			return
 		}
 	}
@@ -187,17 +181,19 @@ func (h *Handler) getNextPlanItem(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) updatePlanItemStatus(w http.ResponseWriter, r *http.Request, path string) {
 	id := strings.TrimSuffix(strings.TrimPrefix(path, "/study/plan/items/"), "/status")
 	var body struct {
-		Status string `json:"status"`
+		Status *bool `json:"status"`
 	}
 	if err := readJSON(r, &body); err != nil {
+		h.logger.Warn("invalid plan item status payload", "id", id, "error", err)
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if !model.ValidStatus(body.Status) {
-		writeError(w, http.StatusBadRequest, "status must be incomplete or completed")
+	if body.Status == nil {
+		h.logger.Warn("missing plan item status", "id", id)
+		writeError(w, http.StatusBadRequest, "status must be true or false")
 		return
 	}
-	item, err := h.store.UpdatePlanItemStatus(r.Context(), id, body.Status)
+	item, err := h.store.UpdatePlanItemStatus(r.Context(), id, *body.Status)
 	if errors.Is(err, model.ErrNotFound) {
 		writeError(w, http.StatusNotFound, "plan item not found")
 		return

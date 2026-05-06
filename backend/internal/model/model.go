@@ -16,7 +16,7 @@ type PlanItem struct {
 	ID       string `json:"id"`
 	Position int    `json:"position"`
 	Content  string `json:"content"`
-	Status   string `json:"status"`
+	Status   bool   `json:"status"`
 }
 
 type PlanSummary struct {
@@ -42,6 +42,20 @@ type StudyFile struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
-func ValidStatus(status string) bool {
-	return status == StatusIncomplete || status == StatusCompleted
+func StatusToStorage(status bool) string {
+	if status {
+		return StatusCompleted
+	}
+	return StatusIncomplete
+}
+
+func StatusFromStorage(status string) (bool, bool) {
+	switch status {
+	case StatusCompleted:
+		return true, true
+	case StatusIncomplete:
+		return false, true
+	default:
+		return false, false
+	}
 }
