@@ -6,17 +6,22 @@
   <title>StudyPlan 学习小站</title>
   <link rel="stylesheet" href="./styles.css">
 </head>
-<body>
+<body data-page="home">
   <div class="app-shell">
-    <header class="hero">
+    <header class="hero compact-hero">
       <nav class="topbar" aria-label="顶部导航">
-        <a class="brand" href="#top" aria-label="StudyPlan 首页">
+        <a class="brand" href="./index.html" aria-label="StudyPlan 首页">
           <span class="brand-mark">S</span>
           <span>
             <strong>StudyPlan</strong>
             <small>学习小站</small>
           </span>
         </a>
+        <div class="page-nav" aria-label="页面导航">
+          <a class="nav-link active" href="./index.html" aria-current="page">总览</a>
+          <a class="nav-link" href="./plan.html">学习计划</a>
+          <a class="nav-link" href="./notes.html">学习笔记</a>
+        </div>
         <div class="api-config" aria-label="服务配置">
           <label for="apiBase">服务地址</label>
           <input id="apiBase" type="url" placeholder="http://localhost:8080" autocomplete="off">
@@ -26,12 +31,13 @@
 
       <section id="top" class="hero-grid">
         <div class="hero-copy">
-          <p class="eyebrow">计划 · 打卡 · 笔记</p>
-          <h1>轻松安排学习，随手记录进度。</h1>
-          <p>写下目标、勾选完成、保存笔记，让每次学习都有迹可循。</p>
+          <p class="eyebrow">Overview</p>
+          <h1>学习进度，一眼看清。</h1>
+          <p>总览页只展示服务状态、计划统计和下一步行动；计划与笔记已拆分到独立页面，避免内容堆叠。</p>
           <div class="hero-actions">
-            <button id="refreshAll" class="button primary" type="button">刷新数据</button>
-            <a class="button subtle" href="#plan">开始记录</a>
+            <button id="refreshAll" class="button primary" type="button">刷新总览</button>
+            <a class="button subtle" href="./plan.html">管理计划</a>
+            <a class="button subtle" href="./notes.html">整理笔记</a>
           </div>
         </div>
         <aside class="status-card" aria-live="polite">
@@ -74,50 +80,19 @@
         </article>
       </section>
 
-      <section id="plan" class="panel plan-panel">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">Plan</p>
-            <h2>学习计划</h2>
-            <p>一行一个目标，完成后直接勾选。</p>
-          </div>
-          <button id="loadPlan" class="button ghost" type="button">刷新</button>
-        </div>
-
-        <div class="next-card" id="nextCard">
-          <span>下一步</span>
-          <strong id="nextTask">刷新后显示</strong>
-        </div>
-
-        <form id="planForm" class="composer">
-          <label for="planInput">学习目标</label>
-          <textarea id="planInput" rows="7" placeholder="例如：\n读完一章课程\n整理今天的重点\n复盘错题"></textarea>
-          <div class="form-actions">
-            <button class="button primary" type="submit">保存计划</button>
-            <button id="useSamplePlan" class="button subtle" type="button">填入示例</button>
-          </div>
-        </form>
-
-        <div id="planList" class="task-list" aria-live="polite"></div>
-      </section>
-
-      <section id="records" class="panel records-panel">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">Notes</p>
-            <h2>学习笔记</h2>
-            <p>按主题整理笔记，回顾时更清楚。</p>
-          </div>
-          <button id="loadTitles" class="button ghost" type="button">刷新</button>
-        </div>
-
-        <form id="titleForm" class="inline-form">
-          <label class="sr-only" for="titleName">新主题名称</label>
-          <input id="titleName" type="text" maxlength="120" placeholder="新建主题，例如：英语阅读">
-          <button class="button primary" type="submit">新建主题</button>
-        </form>
-
-        <div id="titleList" class="title-list" aria-live="polite"></div>
+      <section class="overview-grid" aria-label="快捷入口">
+        <article class="panel quick-card">
+          <p class="eyebrow">Next</p>
+          <h2>下一步</h2>
+          <p id="nextTask">刷新后显示</p>
+          <a class="button primary" href="./plan.html">查看学习计划</a>
+        </article>
+        <article class="panel quick-card">
+          <p class="eyebrow">Notes</p>
+          <h2>学习笔记</h2>
+          <p>主题、Markdown 上传和文件列表集中在笔记页维护。</p>
+          <a class="button ghost" href="./notes.html">打开学习笔记</a>
+        </article>
       </section>
     </main>
   </div>

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>学习笔记 - StudyPlan</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body data-page="notes">
+  <div class="app-shell">
+    <header class="hero page-hero">
+      <nav class="topbar" aria-label="顶部导航">
+        <a class="brand" href="./index.html" aria-label="StudyPlan 首页">
+          <span class="brand-mark">S</span>
+          <span>
+            <strong>StudyPlan</strong>
+            <small>学习小站</small>
+          </span>
+        </a>
+        <div class="page-nav" aria-label="页面导航">
+          <a class="nav-link" href="./index.html">总览</a>
+          <a class="nav-link" href="./plan.html">学习计划</a>
+          <a class="nav-link active" href="./notes.html" aria-current="page">学习笔记</a>
+        </div>
+        <div class="api-config" aria-label="服务配置">
+          <label for="apiBase">服务地址</label>
+          <input id="apiBase" type="url" placeholder="http://localhost:8080" autocomplete="off">
+          <button id="saveApiBase" class="button ghost" type="button">保存</button>
+        </div>
+      </nav>
+      <div class="page-title">
+        <p class="eyebrow">Notes</p>
+        <h1>学习笔记</h1>
+        <p>主题、文件上传和笔记列表单独管理，回顾时更清楚。</p>
+      </div>
+    </header>
+
+    <main>
+      <section id="records" class="panel records-panel">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Notes</p>
+            <h2>主题与 Markdown 笔记</h2>
+            <p>按主题整理笔记，回顾时更清楚。</p>
+          </div>
+          <button id="loadTitles" class="button ghost" type="button">刷新主题</button>
+        </div>
+
+        <form id="titleForm" class="inline-form">
+          <label class="sr-only" for="titleName">新主题名称</label>
+          <input id="titleName" type="text" maxlength="120" placeholder="新建主题，例如：英语阅读">
+          <button class="button primary" type="submit">新建主题</button>
+        </form>
+
+        <div id="titleList" class="title-list" aria-live="polite"></div>
+      </section>
+    </main>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <template id="emptyStateTemplate">
+    <div class="empty-state">
+      <span>📚</span>
+      <strong>暂无内容</strong>
+      <p>添加笔记主题后，这里会显示内容。</p>
+    </div>
+  </template>
+
+  <script src="./app.js" defer></script>
+</body>
+</html>
