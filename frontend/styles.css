@@ -52,8 +52,9 @@ a { color: inherit; text-decoration: none; }
 .brand { display: inline-flex; align-items: center; gap: 12px; min-width: max-content; }
 .brand-mark {
   display: grid; place-items: center; width: 46px; height: 46px; border-radius: 16px;
-  color: white; font-weight: 900; background: linear-gradient(135deg, var(--primary), var(--accent));
+  overflow: hidden; background: linear-gradient(135deg, var(--primary), var(--accent));
 }
+.brand-mark img { display: block; width: 100%; height: 100%; }
 .brand strong, .brand small { display: block; }
 .brand small { color: var(--muted); font-size: 12px; margin-top: 2px; }
 .api-config { display: flex; align-items: center; gap: 10px; flex: 1.2; justify-content: flex-end; }
