@@ -1,4 +1,5 @@
 const API_BASE_KEY = 'studyplan_api_base';
+const DEFAULT_BACKEND_PORT = '8080';
 const DEFAULT_SAMPLE_PLAN = [
   '读完一章课程',
   '整理今天的重点',
@@ -6,8 +7,16 @@ const DEFAULT_SAMPLE_PLAN = [
   '复盘还没掌握的内容'
 ];
 
+function getDefaultApiBase() {
+  if (window.location.origin === 'null') return `http://localhost:${DEFAULT_BACKEND_PORT}`;
+  const { protocol, hostname, port } = window.location;
+  const isLocalPreview = ['localhost', '127.0.0.1', '::1'].includes(hostname) && port && port !== DEFAULT_BACKEND_PORT;
+  if (isLocalPreview) return `${protocol}//${hostname}:${DEFAULT_BACKEND_PORT}`;
+  return window.location.origin;
+}
+
 const state = {
-  apiBase: localStorage.getItem(API_BASE_KEY) || window.location.origin,
+  apiBase: localStorage.getItem(API_BASE_KEY) || getDefaultApiBase(),
   plan: [],
   titles: [],
   filesByTitle: new Map(),
@@ -61,7 +70,12 @@ async function request(path, options = {}) {
   };
   const response = await fetch(apiURL(path), init);
   const text = await response.text();
-  const data = text ? JSON.parse(text) : null;
+  let data = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch (error) {
+    throw new Error(`服务返回内容不是 JSON，请检查服务地址：${apiURL(path)}`);
+  }
   if (!response.ok) {
     throw new Error(data?.error || data?.message || `操作失败：${response.status}`);
   }
@@ -115,10 +129,21 @@ function formatBytes(bytes) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
+function getLocalSummary() {
+  const total = state.plan.length;
+  const completed = state.plan.filter((item) => item.status).length;
+  return { total, completed, incomplete: Math.max(total - completed, 0) };
+}
+
+function getLocalNextTask() {
+  return state.plan.find((item) => !item.status)?.content || '暂无下一步';
+}
+
 function updateSummary(summary) {
-  const total = summary?.total ?? state.plan.length;
-  const completed = summary?.completed ?? state.plan.filter((item) => item.status).length;
-  const incomplete = summary?.incomplete ?? Math.max(total - completed, 0);
+  const local = getLocalSummary();
+  const total = summary?.total ?? local.total;
+  const completed = summary?.completed ?? local.completed;
+  const incomplete = summary?.incomplete ?? local.incomplete;
   const rate = total ? Math.round((completed / total) * 100) : 0;
   if (elements.totalCount) elements.totalCount.textContent = total;
   if (elements.completedCount) elements.completedCount.textContent = completed;
@@ -271,15 +296,27 @@ async function checkHealth() {
 }
 
 async function loadPlan() {
-  const [plan, summary, next] = await Promise.all([
-    request('/study/plan'),
+  const plan = await request('/study/plan');
+  state.plan = Array.isArray(plan) ? plan : [];
+  renderPlan();
+  updateSummary();
+  if (elements.nextTask) elements.nextTask.textContent = getLocalNextTask();
+
+  const [summaryResult, nextResult] = await Promise.allSettled([
     request('/study/plan/status'),
     request('/study/plan/next'),
   ]);
-  state.plan = Array.isArray(plan) ? plan : [];
-  renderPlan();
-  updateSummary(summary);
-  if (elements.nextTask) elements.nextTask.textContent = next?.content || next?.item?.content || next?.message || '暂无下一步';
+  if (summaryResult.status === 'fulfilled') {
+    updateSummary(summaryResult.value);
+  } else {
+    console.warn('刷新计划统计失败，已使用本地计划数据', summaryResult.reason);
+  }
+  if (nextResult.status === 'fulfilled' && elements.nextTask) {
+    const next = nextResult.value;
+    elements.nextTask.textContent = next?.content || next?.item?.content || next?.message || getLocalNextTask();
+  } else if (nextResult.status === 'rejected') {
+    console.warn('刷新下一步失败，已使用本地计划数据', nextResult.reason);
+  }
 }
 
 async function loadTitles() {
@@ -288,21 +325,27 @@ async function loadTitles() {
   renderTitles();
 }
 
-async function refreshAll() {
+async function refreshAll({ silent = false } = {}) {
   setBusy(elements.refreshAll, true, '刷新中...');
-  try {
-    const jobs = [];
-    if (elements.healthText) jobs.push(checkHealth());
-    if (elements.totalCount || elements.planList || elements.nextTask) jobs.push(loadPlan());
-    if (elements.titleList) jobs.push(loadTitles());
-    await Promise.all(jobs);
-    if (elements.lastSync) elements.lastSync.textContent = `上次刷新：${new Date().toLocaleString('zh-CN')}`;
-    showToast('数据已刷新');
-  } catch (error) {
-    showToast(error.message, 'error');
-  } finally {
-    setBusy(elements.refreshAll, false);
+  const jobs = [];
+  if (elements.healthText) jobs.push({ name: '服务状态', run: checkHealth });
+  if (elements.totalCount || elements.planList || elements.nextTask) jobs.push({ name: '学习计划', run: loadPlan });
+  if (elements.titleList) jobs.push({ name: '学习笔记', run: loadTitles });
+
+  const results = await Promise.allSettled(jobs.map((job) => job.run()));
+  const failed = results
+    .map((result, index) => ({ result, name: jobs[index].name }))
+    .filter(({ result }) => result.status === 'rejected');
+
+  if (elements.lastSync) elements.lastSync.textContent = `上次刷新：${new Date().toLocaleString('zh-CN')}`;
+  if (!silent) {
+    if (failed.length) {
+      showToast(`${failed.map((item) => item.name).join('、')}刷新失败：${failed[0].result.reason.message}`, 'error');
+    } else {
+      showToast('数据已刷新');
+    }
   }
+  setBusy(elements.refreshAll, false);
 }
 
 async function savePlan(event) {
@@ -441,7 +484,7 @@ function bind(element, eventName, handler) {
 function bindEvents() {
   if (elements.apiBase) elements.apiBase.value = state.apiBase;
   bind(elements.saveApiBase, 'click', () => {
-    const value = normalizeBase(elements.apiBase ? elements.apiBase.value : '') || window.location.origin;
+    const value = normalizeBase(elements.apiBase ? elements.apiBase.value : '') || getDefaultApiBase();
     state.apiBase = value;
     localStorage.setItem(API_BASE_KEY, value);
     if (elements.apiBase) elements.apiBase.value = value;
@@ -456,6 +499,12 @@ function bindEvents() {
     if (elements.planInput) elements.planInput.value = DEFAULT_SAMPLE_PLAN.join('\n');
     showToast('已填入示例');
   });
+  if (currentPage === 'home') {
+    bind(document, 'visibilitychange', () => {
+      if (!document.hidden) refreshAll({ silent: true });
+    });
+    bind(window, 'focus', () => refreshAll({ silent: true }));
+  }
 }
 
 bindEvents();
@@ -466,5 +515,5 @@ if (currentPage === 'plan') {
   renderTitles();
   loadTitles().catch((error) => showToast(error.message, 'error'));
 } else {
-  refreshAll();
+  refreshAll({ silent: true });
 }
