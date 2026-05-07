@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>学习计划 - StudyPlan</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body data-page="plan">
+  <div class="app-shell">
+    <header class="hero page-hero">
+      <nav class="topbar" aria-label="顶部导航">
+        <a class="brand" href="./index.html" aria-label="StudyPlan 首页">
+          <span class="brand-mark">S</span>
+          <span>
+            <strong>StudyPlan</strong>
+            <small>学习小站</small>
+          </span>
+        </a>
+        <div class="page-nav" aria-label="页面导航">
+          <a class="nav-link" href="./index.html">总览</a>
+          <a class="nav-link active" href="./plan.html" aria-current="page">学习计划</a>
+          <a class="nav-link" href="./notes.html">学习笔记</a>
+        </div>
+        <div class="api-config" aria-label="服务配置">
+          <label for="apiBase">服务地址</label>
+          <input id="apiBase" type="url" placeholder="http://localhost:8080" autocomplete="off">
+          <button id="saveApiBase" class="button ghost" type="button">保存</button>
+        </div>
+      </nav>
+      <div class="page-title">
+        <p class="eyebrow">Plan</p>
+        <h1>学习计划</h1>
+        <p>只保留目标录入、下一步和打卡列表，让计划维护更专注。</p>
+      </div>
+    </header>
+
+    <main>
+      <section class="metrics" aria-label="学习计划统计">
+        <article>
+          <span>总任务</span>
+          <strong id="totalCount">0</strong>
+        </article>
+        <article>
+          <span>已完成</span>
+          <strong id="completedCount">0</strong>
+        </article>
+        <article>
+          <span>未完成</span>
+          <strong id="incompleteCount">0</strong>
+        </article>
+        <article>
+          <span>完成率</span>
+          <strong id="completionRate">0%</strong>
+        </article>
+      </section>
+
+      <section id="plan" class="panel plan-panel">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Plan</p>
+            <h2>目标与打卡</h2>
+            <p>一行一个目标，完成后直接勾选。</p>
+          </div>
+          <button id="loadPlan" class="button ghost" type="button">刷新计划</button>
+        </div>
+
+        <div class="next-card" id="nextCard">
+          <span>下一步</span>
+          <strong id="nextTask">刷新后显示</strong>
+        </div>
+
+        <form id="planForm" class="composer">
+          <label for="planInput">学习目标</label>
+          <textarea id="planInput" rows="7" placeholder="例如：&#10;读完一章课程&#10;整理今天的重点&#10;复盘错题"></textarea>
+          <div class="form-actions">
+            <button class="button primary" type="submit">保存计划</button>
+            <button id="useSamplePlan" class="button subtle" type="button">填入示例</button>
+          </div>
+        </form>
+
+        <div id="planList" class="task-list" aria-live="polite"></div>
+      </section>
+    </main>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <template id="emptyStateTemplate">
+    <div class="empty-state">
+      <span>📚</span>
+      <strong>暂无内容</strong>
+      <p>添加计划后，这里会显示进展。</p>
+    </div>
+  </template>
+
+  <script src="./app.js" defer></script>
+</body>
+</html>

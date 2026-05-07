@@ -15,6 +15,7 @@ const state = {
 
 const $ = (selector) => document.querySelector(selector);
 const emptyTemplate = $('#emptyStateTemplate');
+const currentPage = document.body.dataset.page || 'home';
 
 const elements = {
   apiBase: $('#apiBase'),
@@ -68,6 +69,7 @@ async function request(path, options = {}) {
 }
 
 function showToast(message, type = 'success') {
+  if (!elements.toast) return;
   elements.toast.textContent = message;
   elements.toast.className = `toast show ${type === 'error' ? 'error' : ''}`;
   clearTimeout(showToast.timer);
@@ -89,6 +91,7 @@ function setBusy(button, busy, labelWhenBusy = '请稍候...') {
 }
 
 function renderEmpty(container, message = '暂无内容') {
+  if (!container || !emptyTemplate) return;
   const node = emptyTemplate.content.cloneNode(true);
   node.querySelector('strong').textContent = message;
   container.replaceChildren(node);
@@ -117,22 +120,23 @@ function updateSummary(summary) {
   const completed = summary?.completed ?? state.plan.filter((item) => item.status).length;
   const incomplete = summary?.incomplete ?? Math.max(total - completed, 0);
   const rate = total ? Math.round((completed / total) * 100) : 0;
-  elements.totalCount.textContent = total;
-  elements.completedCount.textContent = completed;
-  elements.incompleteCount.textContent = incomplete;
-  elements.completionRate.textContent = `${rate}%`;
+  if (elements.totalCount) elements.totalCount.textContent = total;
+  if (elements.completedCount) elements.completedCount.textContent = completed;
+  if (elements.incompleteCount) elements.incompleteCount.textContent = incomplete;
+  if (elements.completionRate) elements.completionRate.textContent = `${rate}%`;
 }
 
 function renderPlan() {
+  if (!elements.planList) return;
   if (!state.plan.length) {
     renderEmpty(elements.planList, '还没有计划');
-    elements.planInput.value = '';
+    if (elements.planInput) elements.planInput.value = '';
     updateSummary({ total: 0, completed: 0, incomplete: 0 });
-    elements.nextTask.textContent = '暂无下一步';
+    if (elements.nextTask) elements.nextTask.textContent = '暂无下一步';
     return;
   }
 
-  elements.planInput.value = state.plan.map((item) => item.content).join('\n');
+  if (elements.planInput) elements.planInput.value = state.plan.map((item) => item.content).join('\n');
   const fragment = document.createDocumentFragment();
   state.plan.forEach((item) => {
     const card = document.createElement('article');
@@ -159,6 +163,7 @@ function renderPlan() {
 }
 
 function renderTitles() {
+  if (!elements.titleList) return;
   if (!state.titles.length) {
     renderEmpty(elements.titleList, '还没有主题');
     return;
@@ -251,15 +256,16 @@ function refreshFilePanel(titleID) {
 async function checkHealth() {
   try {
     const health = await request('/study/health');
+    if (!elements.healthPulse || !elements.healthText) return health;
     elements.healthPulse.className = 'pulse ok';
     elements.healthText.textContent = health.status === 'ok' ? '状态正常' : '部分可用';
     elements.pgStatus.textContent = friendlyStatus(health.postgres);
     elements.ossStatus.textContent = friendlyStatus(health.oss);
   } catch (error) {
-    elements.healthPulse.className = 'pulse bad';
-    elements.healthText.textContent = '暂时连不上';
-    elements.pgStatus.textContent = '—';
-    elements.ossStatus.textContent = '—';
+    if (elements.healthPulse) elements.healthPulse.className = 'pulse bad';
+    if (elements.healthText) elements.healthText.textContent = '暂时连不上';
+    if (elements.pgStatus) elements.pgStatus.textContent = '—';
+    if (elements.ossStatus) elements.ossStatus.textContent = '—';
     throw error;
   }
 }
@@ -273,7 +279,7 @@ async function loadPlan() {
   state.plan = Array.isArray(plan) ? plan : [];
   renderPlan();
   updateSummary(summary);
-  elements.nextTask.textContent = next?.content || next?.item?.content || next?.message || '暂无下一步';
+  if (elements.nextTask) elements.nextTask.textContent = next?.content || next?.item?.content || next?.message || '暂无下一步';
 }
 
 async function loadTitles() {
@@ -285,9 +291,12 @@ async function loadTitles() {
 async function refreshAll() {
   setBusy(elements.refreshAll, true, '刷新中...');
   try {
-    await checkHealth();
-    await Promise.all([loadPlan(), loadTitles()]);
-    elements.lastSync.textContent = `上次刷新：${new Date().toLocaleString('zh-CN')}`;
+    const jobs = [];
+    if (elements.healthText) jobs.push(checkHealth());
+    if (elements.totalCount || elements.planList || elements.nextTask) jobs.push(loadPlan());
+    if (elements.titleList) jobs.push(loadTitles());
+    await Promise.all(jobs);
+    if (elements.lastSync) elements.lastSync.textContent = `上次刷新：${new Date().toLocaleString('zh-CN')}`;
     showToast('数据已刷新');
   } catch (error) {
     showToast(error.message, 'error');
@@ -425,26 +434,32 @@ async function uploadFiles(event, titleID) {
 }
 
 function bindEvents() {
-  elements.apiBase.value = state.apiBase;
-  elements.saveApiBase.addEventListener('click', () => {
+  if (elements.apiBase) elements.apiBase.value = state.apiBase;
+  elements.saveApiBase?.addEventListener('click', () => {
     const value = normalizeBase(elements.apiBase.value) || window.location.origin;
     state.apiBase = value;
     localStorage.setItem(API_BASE_KEY, value);
     elements.apiBase.value = value;
     showToast('服务地址已保存');
   });
-  elements.refreshAll.addEventListener('click', refreshAll);
-  elements.loadPlan.addEventListener('click', () => loadPlan().catch((error) => showToast(error.message, 'error')));
-  elements.loadTitles.addEventListener('click', () => loadTitles().catch((error) => showToast(error.message, 'error')));
-  elements.planForm.addEventListener('submit', savePlan);
-  elements.titleForm.addEventListener('submit', createTitle);
-  elements.useSamplePlan.addEventListener('click', () => {
+  elements.refreshAll?.addEventListener('click', refreshAll);
+  elements.loadPlan?.addEventListener('click', () => loadPlan().catch((error) => showToast(error.message, 'error')));
+  elements.loadTitles?.addEventListener('click', () => loadTitles().catch((error) => showToast(error.message, 'error')));
+  elements.planForm?.addEventListener('submit', savePlan);
+  elements.titleForm?.addEventListener('submit', createTitle);
+  elements.useSamplePlan?.addEventListener('click', () => {
     elements.planInput.value = DEFAULT_SAMPLE_PLAN.join('\n');
     showToast('已填入示例');
   });
 }
 
 bindEvents();
-renderPlan();
-renderTitles();
-refreshAll();
+if (currentPage === 'plan') {
+  renderPlan();
+  loadPlan().catch((error) => showToast(error.message, 'error'));
+} else if (currentPage === 'notes') {
+  renderTitles();
+  loadTitles().catch((error) => showToast(error.message, 'error'));
+} else {
+  refreshAll();
+}
