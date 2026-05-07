@@ -433,22 +433,27 @@ async function uploadFiles(event, titleID) {
   }
 }
 
+function bind(element, eventName, handler) {
+  if (!element) return;
+  element.addEventListener(eventName, handler);
+}
+
 function bindEvents() {
   if (elements.apiBase) elements.apiBase.value = state.apiBase;
-  elements.saveApiBase?.addEventListener('click', () => {
-    const value = normalizeBase(elements.apiBase.value) || window.location.origin;
+  bind(elements.saveApiBase, 'click', () => {
+    const value = normalizeBase(elements.apiBase ? elements.apiBase.value : '') || window.location.origin;
     state.apiBase = value;
     localStorage.setItem(API_BASE_KEY, value);
-    elements.apiBase.value = value;
+    if (elements.apiBase) elements.apiBase.value = value;
     showToast('服务地址已保存');
   });
-  elements.refreshAll?.addEventListener('click', refreshAll);
-  elements.loadPlan?.addEventListener('click', () => loadPlan().catch((error) => showToast(error.message, 'error')));
-  elements.loadTitles?.addEventListener('click', () => loadTitles().catch((error) => showToast(error.message, 'error')));
-  elements.planForm?.addEventListener('submit', savePlan);
-  elements.titleForm?.addEventListener('submit', createTitle);
-  elements.useSamplePlan?.addEventListener('click', () => {
-    elements.planInput.value = DEFAULT_SAMPLE_PLAN.join('\n');
+  bind(elements.refreshAll, 'click', refreshAll);
+  bind(elements.loadPlan, 'click', () => loadPlan().catch((error) => showToast(error.message, 'error')));
+  bind(elements.loadTitles, 'click', () => loadTitles().catch((error) => showToast(error.message, 'error')));
+  bind(elements.planForm, 'submit', savePlan);
+  bind(elements.titleForm, 'submit', createTitle);
+  bind(elements.useSamplePlan, 'click', () => {
+    if (elements.planInput) elements.planInput.value = DEFAULT_SAMPLE_PLAN.join('\n');
     showToast('已填入示例');
   });
 }
