@@ -1,9 +1,9 @@
 const API_BASE_KEY = 'studyplan_api_base';
 const DEFAULT_SAMPLE_PLAN = [
-  '阅读 Go HTTP 标准库并整理请求处理笔记',
-  '完成 PostgreSQL 连接池与迁移实践',
-  '上传本周 Markdown 学习记录',
-  '复盘未完成内容并安排下一次学习'
+  '读完一章课程',
+  '整理今天的重点',
+  '完成一次练习',
+  '复盘还没掌握的内容'
 ];
 
 const state = {
@@ -62,7 +62,7 @@ async function request(path, options = {}) {
   const text = await response.text();
   const data = text ? JSON.parse(text) : null;
   if (!response.ok) {
-    throw new Error(data?.error || data?.message || `请求失败：${response.status}`);
+    throw new Error(data?.error || data?.message || `操作失败：${response.status}`);
   }
   return data;
 }
@@ -76,7 +76,7 @@ function showToast(message, type = 'success') {
   }, 3200);
 }
 
-function setBusy(button, busy, labelWhenBusy = '处理中...') {
+function setBusy(button, busy, labelWhenBusy = '请稍候...') {
   if (!button) return;
   if (busy) {
     button.dataset.originalText = button.textContent;
@@ -101,6 +101,10 @@ function formatDate(value) {
   }).format(new Date(value));
 }
 
+function friendlyStatus(value) {
+  return !value || value === 'ok' ? '正常' : '需检查';
+}
+
 function formatBytes(bytes) {
   if (!Number.isFinite(bytes)) return '未知大小';
   if (bytes < 1024) return `${bytes} B`;
@@ -121,10 +125,10 @@ function updateSummary(summary) {
 
 function renderPlan() {
   if (!state.plan.length) {
-    renderEmpty(elements.planList, '还没有学习计划');
+    renderEmpty(elements.planList, '还没有计划');
     elements.planInput.value = '';
     updateSummary({ total: 0, completed: 0, incomplete: 0 });
-    elements.nextTask.textContent = '暂无未完成任务';
+    elements.nextTask.textContent = '暂无下一步';
     return;
   }
 
@@ -137,7 +141,7 @@ function renderPlan() {
     checkbox.className = 'task-check';
     checkbox.type = 'checkbox';
     checkbox.checked = Boolean(item.status);
-    checkbox.setAttribute('aria-label', `切换任务状态：${item.content}`);
+    checkbox.setAttribute('aria-label', `标记进度：${item.content}`);
     checkbox.addEventListener('change', () => updatePlanItemStatus(item.id, checkbox.checked, checkbox));
 
     const content = document.createElement('div');
@@ -156,7 +160,7 @@ function renderPlan() {
 
 function renderTitles() {
   if (!state.titles.length) {
-    renderEmpty(elements.titleList, '还没有学习记录标题');
+    renderEmpty(elements.titleList, '还没有主题');
     return;
   }
   const fragment = document.createDocumentFragment();
@@ -175,13 +179,13 @@ function createTitleCard(title) {
   const name = document.createElement('h3');
   name.textContent = title.name;
   const meta = document.createElement('p');
-  meta.textContent = `更新于 ${formatDate(title.updated_at)} · 创建于 ${formatDate(title.created_at)}`;
+  meta.textContent = `更新 ${formatDate(title.updated_at)} · 创建 ${formatDate(title.created_at)}`;
   info.append(name, meta);
 
   const actions = document.createElement('div');
   actions.className = 'title-actions';
-  const renameButton = actionButton('重命名', 'ghost', () => renameTitle(title));
-  const filesButton = actionButton('查看文件', 'subtle', () => loadFiles(title.id));
+  const renameButton = actionButton('改名', 'ghost', () => renameTitle(title));
+  const filesButton = actionButton('查看笔记', 'subtle', () => loadFiles(title.id));
   const deleteButton = actionButton('删除', 'danger', () => deleteTitle(title));
   actions.append(renameButton, filesButton, deleteButton);
   main.append(info, actions);
@@ -189,9 +193,9 @@ function createTitleCard(title) {
   const tools = document.createElement('form');
   tools.className = 'file-tools';
   tools.innerHTML = `
-    <input type="file" name="files" accept=".md,.markdown,text/markdown" multiple aria-label="选择 Markdown 文件">
-    <button class="button primary" type="submit">上传 Markdown</button>
-    <button class="button ghost" type="button" data-refresh-files>刷新文件</button>
+    <input type="file" name="files" accept=".md,.markdown,text/markdown" multiple aria-label="选择笔记文件">
+    <button class="button primary" type="submit">上传笔记</button>
+    <button class="button ghost" type="button" data-refresh-files>刷新</button>
   `;
   tools.addEventListener('submit', (event) => uploadFiles(event, title.id));
   tools.querySelector('[data-refresh-files]').addEventListener('click', () => loadFiles(title.id));
@@ -216,11 +220,11 @@ function actionButton(text, variant, onClick) {
 
 function renderFilesInto(container, files) {
   if (!files) {
-    container.innerHTML = '<div class="empty-state"><strong>尚未加载文件</strong><p>点击“查看文件”获取该标题下的 Markdown 元数据。</p></div>';
+    container.innerHTML = '<div class="empty-state"><strong>还未查看笔记</strong><p>点击“查看笔记”即可展开。</p></div>';
     return;
   }
   if (!files.length) {
-    container.innerHTML = '<div class="empty-state"><strong>暂无文件</strong><p>上传 .md 或 .markdown 文件后会显示在这里。</p></div>';
+    container.innerHTML = '<div class="empty-state"><strong>暂无笔记</strong><p>上传笔记后会显示在这里。</p></div>';
     return;
   }
   const fragment = document.createDocumentFragment();
@@ -232,7 +236,7 @@ function renderFilesInto(container, files) {
     left.querySelector('strong').textContent = file.filename;
     left.querySelector('span').textContent = `${formatBytes(file.size)} · ${formatDate(file.created_at)}`;
     const key = document.createElement('span');
-    key.textContent = file.oss_key;
+    key.textContent = '已保存';
     row.append(left, key);
     fragment.append(row);
   });
@@ -248,12 +252,12 @@ async function checkHealth() {
   try {
     const health = await request('/study/health');
     elements.healthPulse.className = 'pulse ok';
-    elements.healthText.textContent = health.status === 'ok' ? '服务正常' : '服务降级';
-    elements.pgStatus.textContent = health.postgres || 'ok';
-    elements.ossStatus.textContent = health.oss || 'ok';
+    elements.healthText.textContent = health.status === 'ok' ? '状态正常' : '部分可用';
+    elements.pgStatus.textContent = friendlyStatus(health.postgres);
+    elements.ossStatus.textContent = friendlyStatus(health.oss);
   } catch (error) {
     elements.healthPulse.className = 'pulse bad';
-    elements.healthText.textContent = '连接异常';
+    elements.healthText.textContent = '暂时连不上';
     elements.pgStatus.textContent = '—';
     elements.ossStatus.textContent = '—';
     throw error;
@@ -269,7 +273,7 @@ async function loadPlan() {
   state.plan = Array.isArray(plan) ? plan : [];
   renderPlan();
   updateSummary(summary);
-  elements.nextTask.textContent = next?.content || next?.item?.content || next?.message || '暂无未完成任务';
+  elements.nextTask.textContent = next?.content || next?.item?.content || next?.message || '暂无下一步';
 }
 
 async function loadTitles() {
@@ -279,12 +283,12 @@ async function loadTitles() {
 }
 
 async function refreshAll() {
-  setBusy(elements.refreshAll, true, '同步中...');
+  setBusy(elements.refreshAll, true, '刷新中...');
   try {
     await checkHealth();
     await Promise.all([loadPlan(), loadTitles()]);
-    elements.lastSync.textContent = `上次同步：${new Date().toLocaleString('zh-CN')}`;
-    showToast('数据同步完成');
+    elements.lastSync.textContent = `上次刷新：${new Date().toLocaleString('zh-CN')}`;
+    showToast('数据已刷新');
   } catch (error) {
     showToast(error.message, 'error');
   } finally {
@@ -296,7 +300,7 @@ async function savePlan(event) {
   event.preventDefault();
   const lines = elements.planInput.value.split('\n').map((line) => line.trim()).filter(Boolean);
   if (!lines.length) {
-    showToast('请至少填写一个学习任务', 'error');
+    showToast('请先写一个目标', 'error');
     return;
   }
   const existingByContent = new Map(state.plan.map((item) => [item.content, item.status]));
@@ -306,7 +310,7 @@ async function savePlan(event) {
   try {
     await request('/study/plan', { method: 'POST', body: JSON.stringify(payload) });
     await loadPlan();
-    showToast('学习计划已保存');
+    showToast('计划已保存');
   } catch (error) {
     showToast(error.message, 'error');
   } finally {
@@ -322,7 +326,7 @@ async function updatePlanItemStatus(id, status, checkbox) {
       body: JSON.stringify({ status }),
     });
     await loadPlan();
-    showToast(status ? '任务已标记完成' : '任务已恢复未完成');
+    showToast(status ? '已完成' : '已取消完成');
   } catch (error) {
     checkbox.checked = !status;
     showToast(error.message, 'error');
@@ -335,16 +339,16 @@ async function createTitle(event) {
   event.preventDefault();
   const name = elements.titleName.value.trim();
   if (!name) {
-    showToast('请输入学习记录标题', 'error');
+    showToast('请输入主题名称', 'error');
     return;
   }
   const button = event.submitter;
-  setBusy(button, true, '新建中...');
+  setBusy(button, true, '创建中...');
   try {
     await request('/study/titles', { method: 'POST', body: JSON.stringify({ name }) });
     elements.titleName.value = '';
     await loadTitles();
-    showToast('标题已创建');
+    showToast('主题已创建');
   } catch (error) {
     showToast(error.message, 'error');
   } finally {
@@ -353,11 +357,11 @@ async function createTitle(event) {
 }
 
 async function renameTitle(title) {
-  const name = prompt('请输入新的标题名称', title.name);
+  const name = prompt('请输入新的主题名称', title.name);
   if (name === null) return;
   const trimmed = name.trim();
   if (!trimmed) {
-    showToast('标题名称不能为空', 'error');
+    showToast('主题名称不能为空', 'error');
     return;
   }
   try {
@@ -366,19 +370,19 @@ async function renameTitle(title) {
       body: JSON.stringify({ name: trimmed }),
     });
     await loadTitles();
-    showToast('标题已重命名');
+    showToast('主题已改名');
   } catch (error) {
     showToast(error.message, 'error');
   }
 }
 
 async function deleteTitle(title) {
-  if (!confirm(`确定删除“${title.name}”？数据库中的文件元数据会被删除。`)) return;
+  if (!confirm(`确定删除“${title.name}”？相关笔记记录也会删除。`)) return;
   try {
     await request(`/study/titles/${encodeURIComponent(title.id)}`, { method: 'DELETE' });
     state.filesByTitle.delete(title.id);
     await loadTitles();
-    showToast('标题已删除');
+    showToast('主题已删除');
   } catch (error) {
     showToast(error.message, 'error');
   }
@@ -389,7 +393,7 @@ async function loadFiles(titleID) {
     const files = await request(`/study/titles/${encodeURIComponent(titleID)}/files`);
     state.filesByTitle.set(titleID, Array.isArray(files) ? files : []);
     refreshFilePanel(titleID);
-    showToast('文件列表已刷新');
+    showToast('笔记已刷新');
   } catch (error) {
     showToast(error.message, 'error');
   }
@@ -400,7 +404,7 @@ async function uploadFiles(event, titleID) {
   const form = event.currentTarget;
   const input = form.querySelector('input[type="file"]');
   if (!input.files.length) {
-    showToast('请选择至少一个 Markdown 文件', 'error');
+    showToast('请选择至少一个笔记文件', 'error');
     return;
   }
   const data = new FormData();
@@ -412,7 +416,7 @@ async function uploadFiles(event, titleID) {
     input.value = '';
     await loadFiles(titleID);
     await loadTitles();
-    showToast('Markdown 文件已上传');
+    showToast('笔记已上传');
   } catch (error) {
     showToast(error.message, 'error');
   } finally {
@@ -427,7 +431,7 @@ function bindEvents() {
     state.apiBase = value;
     localStorage.setItem(API_BASE_KEY, value);
     elements.apiBase.value = value;
-    showToast('API 地址已保存');
+    showToast('服务地址已保存');
   });
   elements.refreshAll.addEventListener('click', refreshAll);
   elements.loadPlan.addEventListener('click', () => loadPlan().catch((error) => showToast(error.message, 'error')));
@@ -436,7 +440,7 @@ function bindEvents() {
   elements.titleForm.addEventListener('submit', createTitle);
   elements.useSamplePlan.addEventListener('click', () => {
     elements.planInput.value = DEFAULT_SAMPLE_PLAN.join('\n');
-    showToast('已填入示例计划');
+    showToast('已填入示例');
   });
 }
 

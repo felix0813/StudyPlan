@@ -3,22 +3,22 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>StudyPlan 个人学习工作台</title>
+  <title>StudyPlan 学习小站</title>
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
   <div class="app-shell">
     <header class="hero">
-      <nav class="topbar" aria-label="主导航">
+      <nav class="topbar" aria-label="顶部导航">
         <a class="brand" href="#top" aria-label="StudyPlan 首页">
           <span class="brand-mark">S</span>
           <span>
             <strong>StudyPlan</strong>
-            <small>个人学习工作台</small>
+            <small>学习小站</small>
           </span>
         </a>
-        <div class="api-config" aria-label="接口配置">
-          <label for="apiBase">API 地址</label>
+        <div class="api-config" aria-label="服务配置">
+          <label for="apiBase">服务地址</label>
           <input id="apiBase" type="url" placeholder="http://localhost:8080" autocomplete="off">
           <button id="saveApiBase" class="button ghost" type="button">保存</button>
         </div>
@@ -26,30 +26,30 @@
 
       <section id="top" class="hero-grid">
         <div class="hero-copy">
-          <p class="eyebrow">专注计划 · 记录沉淀 · 持续复盘</p>
-          <h1>把学习计划、进度和 Markdown 笔记放在一个清爽界面里。</h1>
-          <p>使用原生 HTML、CSS 和 JavaScript 构建，无框架依赖。连接 StudyPlan 后端后即可完成计划维护、进度打卡、标题管理和笔记上传。</p>
+          <p class="eyebrow">计划 · 打卡 · 笔记</p>
+          <h1>轻松安排学习，随手记录进度。</h1>
+          <p>写下目标、勾选完成、保存笔记，让每次学习都有迹可循。</p>
           <div class="hero-actions">
-            <button id="refreshAll" class="button primary" type="button">同步所有数据</button>
-            <a class="button subtle" href="#plan">开始规划</a>
+            <button id="refreshAll" class="button primary" type="button">刷新数据</button>
+            <a class="button subtle" href="#plan">开始记录</a>
           </div>
         </div>
         <aside class="status-card" aria-live="polite">
           <div class="status-head">
             <span class="pulse" id="healthPulse"></span>
-            <span id="healthText">等待检测</span>
+            <span id="healthText">等待刷新</span>
           </div>
           <dl class="health-grid">
             <div>
-              <dt>PostgreSQL</dt>
+              <dt>计划状态</dt>
               <dd id="pgStatus">—</dd>
             </div>
             <div>
-              <dt>OSS</dt>
+              <dt>笔记状态</dt>
               <dd id="ossStatus">—</dd>
             </div>
           </dl>
-          <p id="lastSync">尚未同步</p>
+          <p id="lastSync">尚未刷新</p>
         </aside>
       </section>
     </header>
@@ -77,23 +77,23 @@
       <section id="plan" class="panel plan-panel">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">Study Plan</p>
+            <p class="eyebrow">Plan</p>
             <h2>学习计划</h2>
-            <p>按行输入学习任务，保存时会覆盖后端完整计划；勾选卡片可即时更新状态。</p>
+            <p>一行一个目标，完成后直接勾选。</p>
           </div>
-          <button id="loadPlan" class="button ghost" type="button">刷新计划</button>
+          <button id="loadPlan" class="button ghost" type="button">刷新</button>
         </div>
 
         <div class="next-card" id="nextCard">
-          <span>下一个任务</span>
-          <strong id="nextTask">同步后显示</strong>
+          <span>下一步</span>
+          <strong id="nextTask">刷新后显示</strong>
         </div>
 
         <form id="planForm" class="composer">
-          <label for="planInput">计划内容（每行一个任务）</label>
-          <textarea id="planInput" rows="7" placeholder="例如：\n阅读 Go HTTP 标准库\n完成 PostgreSQL 连接池实践\n整理 Markdown 笔记"></textarea>
+          <label for="planInput">学习目标</label>
+          <textarea id="planInput" rows="7" placeholder="例如：\n读完一章课程\n整理今天的重点\n复盘错题"></textarea>
           <div class="form-actions">
-            <button class="button primary" type="submit">保存完整计划</button>
+            <button class="button primary" type="submit">保存计划</button>
             <button id="useSamplePlan" class="button subtle" type="button">填入示例</button>
           </div>
         </form>
@@ -104,17 +104,17 @@
       <section id="records" class="panel records-panel">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">Learning Records</p>
-            <h2>学习记录</h2>
-            <p>创建主题标题，上传对应 Markdown 笔记，保留每个学习阶段的沉淀。</p>
+            <p class="eyebrow">Notes</p>
+            <h2>学习笔记</h2>
+            <p>按主题整理笔记，回顾时更清楚。</p>
           </div>
-          <button id="loadTitles" class="button ghost" type="button">刷新记录</button>
+          <button id="loadTitles" class="button ghost" type="button">刷新</button>
         </div>
 
         <form id="titleForm" class="inline-form">
-          <label class="sr-only" for="titleName">新标题名称</label>
-          <input id="titleName" type="text" maxlength="120" placeholder="新建学习记录标题，例如：Go 学习记录">
-          <button class="button primary" type="submit">新建标题</button>
+          <label class="sr-only" for="titleName">新主题名称</label>
+          <input id="titleName" type="text" maxlength="120" placeholder="新建主题，例如：英语阅读">
+          <button class="button primary" type="submit">新建主题</button>
         </form>
 
         <div id="titleList" class="title-list" aria-live="polite"></div>
@@ -128,7 +128,7 @@
     <div class="empty-state">
       <span>📚</span>
       <strong>暂无内容</strong>
-      <p>添加计划或学习记录后，这里会显示你的学习进展。</p>
+      <p>添加计划或笔记后，这里会显示进展。</p>
     </div>
   </template>
 
