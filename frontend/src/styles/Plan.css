@@ -1,0 +1,31 @@
+.page-hero { padding-bottom: 8px; }
+.page-title { margin-top: 28px; padding: 34px 42px; border-radius: var(--radius-xl); background: linear-gradient(135deg, rgba(255,255,255,.88), rgba(255,255,255,.6)); border: 1px solid rgba(255, 255, 255, 0.78); box-shadow: var(--shadow); backdrop-filter: blur(18px); }
+.page-title p:not(.eyebrow) { max-width: 720px; color: var(--muted); line-height: 1.8; }
+.page-title h1 { font-size: clamp(34px, 5vw, 58px); }
+
+.next-card { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 18px; border-radius: 20px; background: linear-gradient(135deg, var(--primary-soft), #e9fbf7); margin-bottom: 20px; }
+.next-card span { color: var(--muted); font-weight: 700; }
+.next-card strong { font-size: 18px; }
+.composer { padding: 18px; border: 1px solid var(--line); border-radius: 22px; background: rgba(255,255,255,.58); }
+.composer label { display: block; margin-bottom: 10px; font-weight: 800; }
+.form-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
+
+.task-list { display: grid; gap: 14px; margin-top: 18px; }
+.task-item {
+  border: 1px solid var(--line); border-radius: 20px; background: var(--surface-strong); padding: 16px;
+  display: grid; grid-template-columns: auto minmax(0,1fr) auto; gap: 14px; align-items: center;
+}
+.task-check { width: 24px; height: 24px; accent-color: var(--primary); }
+.task-content { line-height: 1.6; }
+.task-content.completed { color: var(--muted); text-decoration: line-through; }
+.task-position { color: var(--muted); font-size: 13px; font-weight: 800; }
+
+@media (max-width: 880px) {
+  .page-title { padding: 28px; }
+}
+
+@media (max-width: 560px) {
+  .page-title { padding: 20px; border-radius: 22px; }
+  .task-item { grid-template-columns: auto minmax(0,1fr); }
+  .task-position { grid-column: 2; }
+}
