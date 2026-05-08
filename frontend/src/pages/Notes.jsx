@@ -132,16 +132,6 @@ export default function Notes({ apiBase, setApiBase, context }) {
     }
   };
 
-  const loadFiles = async (titleID) => {
-    try {
-      const files = await context.request(`/study/titles/${encodeURIComponent(titleID)}/files`);
-      context.setFilesByTitle((value) => ({ ...value, [titleID]: Array.isArray(files) ? files : [] }));
-      context.showToast('笔记已刷新');
-    } catch (error) {
-      context.showToast(error.message, 'error');
-    }
-  };
-
   const uploadFiles = async (event, titleID) => {
     event.preventDefault();
     const form = event.currentTarget;
@@ -156,7 +146,7 @@ export default function Notes({ apiBase, setApiBase, context }) {
     try {
       await context.request(`/study/titles/${encodeURIComponent(titleID)}/files`, { method: 'POST', body: data });
       input.value = '';
-      await loadFiles(titleID);
+      await context.loadFilesForTitle(titleID, true);
       await context.loadTitles();
       context.showToast('笔记已上传');
     } catch (error) {
@@ -193,7 +183,7 @@ export default function Notes({ apiBase, setApiBase, context }) {
                 uploadBusy={context.busy[`upload-${title.id}`]}
                 onRename={() => renameTitle(title)}
                 onDelete={() => deleteTitle(title)}
-                onLoadFiles={() => loadFiles(title.id)}
+                onLoadFiles={() => context.loadFilesForTitle(title.id)}
                 onUploadFiles={(event) => uploadFiles(event, title.id)}
               />
             )) : <EmptyState message="还没有主题" detail="添加笔记主题后，这里会显示内容。" />}
