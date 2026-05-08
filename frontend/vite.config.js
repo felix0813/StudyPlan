@@ -4,5 +4,5 @@ import { resolve } from 'node:path';
 
 export default defineConfig({
   plugins: [react()],
-  base: '/studyPlan/'
+   base: '/studyPlan/'
 });

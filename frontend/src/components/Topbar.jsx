@@ -23,7 +23,7 @@ export default function Topbar({ apiBase, setApiBase, showToast }) {
     <nav className="topbar" aria-label="顶部导航">
       <NavLink className="brand" to="/" aria-label="StudyPlan 首页">
         <span className="brand-mark" aria-hidden="true">
-          <img src="/favicon.svg" alt="" />
+          <img src="/studyPlan/favicon.svg" alt="" />
         </span>
         <span>
           <strong>StudyPlan</strong>
