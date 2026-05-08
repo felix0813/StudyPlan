@@ -82,10 +82,24 @@ export default function App() {
     await refreshPlanDetails(nextPlan);
   }, [refreshPlanDetails, apiRequest]);
 
+  const loadFilesForTitle = useCallback(async (titleID, silent = false) => {
+    try {
+      const files = await apiRequest(`/study/titles/${encodeURIComponent(titleID)}/files`);
+      setFilesByTitle((value) => ({ ...value, [titleID]: Array.isArray(files) ? files : [] }));
+      if (!silent) showToast('笔记已刷新');
+    } catch (error) {
+      if (!silent) showToast(error.message, 'error');
+    }
+  }, [apiRequest, showToast]);
+
   const loadTitles = useCallback(async () => {
     const data = await apiRequest('/study/titles');
-    setTitles(Array.isArray(data) ? data : []);
-  }, [apiRequest]);
+    const nextTitles = Array.isArray(data) ? data : [];
+    setTitles(nextTitles);
+    nextTitles.forEach((title) => {
+      loadFilesForTitle(title.id, true);
+    });
+  }, [apiRequest, loadFilesForTitle]);
 
   const checkHealth = useCallback(async () => {
     try {
@@ -141,6 +155,7 @@ export default function App() {
     filesByTitle,
     loadPlan,
     loadTitles,
+    loadFilesForTitle,
     plan,
     refreshAll,
     request: apiRequest,
@@ -154,7 +169,7 @@ export default function App() {
     summary,
     titles,
     nextTask,
-  }), [busy, filesByTitle, loadPlan, loadTitles, plan, refreshAll, apiRequest, summary, titles, nextTask, showToast]);
+  }), [busy, filesByTitle, loadPlan, loadTitles, loadFilesForTitle, plan, refreshAll, apiRequest, summary, titles, nextTask, showToast]);
 
   return (
     <div className="app-shell">
