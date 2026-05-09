@@ -1,16 +1,23 @@
 .detail-main {
-  display: grid;
-  grid-template-columns: 320px 1fr;
-  gap: 24px;
+  display: block;
+  position: relative;
   padding: 24px;
   max-width: 1400px;
   margin: 0 auto;
 }
 
 .detail-sidebar {
+  position: fixed;
+  left: 24px;
+  top: 180px;
+  width: 260px;
   display: flex;
   flex-direction: column;
   gap: 20px;
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+  z-index: 10;
+  scrollbar-width: thin;
 }
 
 .back-button {
@@ -30,8 +37,6 @@
   flex-direction: column;
   gap: 8px;
   margin-top: 12px;
-  max-height: 60vh;
-  overflow-y: auto;
 }
 
 .file-item-mini {
@@ -67,6 +72,12 @@
   color: var(--muted);
 }
 
+.detail-content {
+  max-width: 800px;
+  margin: 0 auto;
+  width: 100%;
+}
+
 .content-header {
   margin-bottom: 24px;
   padding-bottom: 16px;
@@ -87,6 +98,8 @@
 .markdown-body {
   line-height: 1.6;
   color: var(--foreground);
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .markdown-body h1, .markdown-body h2, .markdown-body h3 {
@@ -110,13 +123,37 @@
   border-radius: 12px;
   overflow-x: auto;
   margin-bottom: 16px;
+  max-width: 100%;
+}
+
+.markdown-body img {
+  max-width: 100%;
+  height: auto;
+}
+
+.markdown-body table {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  margin-bottom: 16px;
+  border-collapse: collapse;
+}
+
+@media (max-width: 1400px) {
+  .detail-sidebar {
+    position: static;
+    width: 100%;
+    max-height: none;
+    margin-bottom: 24px;
+  }
+
+  .detail-main {
+    display: flex;
+    flex-direction: column;
+  }
 }
 
 @media (max-width: 960px) {
-  .detail-main {
-    grid-template-columns: 1fr;
-  }
-
   .detail-sidebar {
     order: 2;
   }
