@@ -25,7 +25,7 @@ function formatBytes(bytes) {
 
 function PageHero({ title, eyebrow, description, apiBase, setApiBase, showToast }) {
   return (
-    <header className="hero page-hero">
+    <header className="hero page-hero detail-page-hero">
       <Topbar apiBase={apiBase} setApiBase={setApiBase} showToast={showToast} />
       <div className="page-title">
         <p className="eyebrow">{eyebrow}</p>
@@ -107,6 +107,26 @@ export default function NoteDetail({ apiBase, setApiBase, context }) {
     <>
       <PageHero apiBase={apiBase} setApiBase={setApiBase} title={title.name} eyebrow="Notes Detail" description="查看和管理该主题下的所有笔记。" showToast={context.showToast} />
       <main className="detail-main">
+        <div className="detail-content">
+          <section className="panel content-panel">
+            {selectedFile ? (
+              <>
+                <div className="content-header">
+                  <h2>{selectedFile.filename}</h2>
+                  <p>{formatBytes(selectedFile.size)} · {formatDate(selectedFile.created_at)}</p>
+                </div>
+                <div className="markdown-body">
+                  {loadingContent ? <p>正在加载内容...</p> : (
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+                  )}
+                </div>
+              </>
+            ) : (
+              <EmptyState message="请选择一个笔记" detail="从右侧列表中点击笔记即可查看详细内容。" />
+            )}
+          </section>
+        </div>
+
         <div className="detail-sidebar">
           <button className="button ghost back-button" onClick={() => navigate('/notes')}>← 返回主题列表</button>
 
@@ -134,26 +154,6 @@ export default function NoteDetail({ apiBase, setApiBase, context }) {
                 </div>
               )) : <p className="empty-text">暂无笔记</p>}
             </div>
-          </section>
-        </div>
-
-        <div className="detail-content">
-          <section className="panel content-panel">
-            {selectedFile ? (
-              <>
-                <div className="content-header">
-                  <h2>{selectedFile.filename}</h2>
-                  <p>{formatBytes(selectedFile.size)} · {formatDate(selectedFile.created_at)}</p>
-                </div>
-                <div className="markdown-body">
-                  {loadingContent ? <p>正在加载内容...</p> : (
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
-                  )}
-                </div>
-              </>
-            ) : (
-              <EmptyState message="请选择一个笔记" detail="从左侧列表中点击笔记即可查看详细内容。" />
-            )}
           </section>
         </div>
       </main>
