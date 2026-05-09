@@ -29,6 +29,7 @@ export default function App() {
   const page = useMemo(() => {
     if (location.pathname === '/') return 'home';
     if (location.pathname === '/plan') return 'plan';
+    if (location.pathname.startsWith('/notes/')) return 'note-detail';
     if (location.pathname.startsWith('/notes')) return 'notes';
     return 'home';
   }, [location.pathname]);
@@ -170,7 +171,7 @@ export default function App() {
   }), [busy, filesByTitle, loadPlan, loadTitles, loadFilesForTitle, plan, refreshAll, apiRequest, summary, titles, nextTask, showToast]);
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell page-${page}`}>
       <Routes>
         <Route path="/" element={<Home page={page} apiBase={apiBase} setApiBase={setApiBase} health={health} lastSync={lastSync} context={appContext} />} />
         <Route path="/plan" element={<Plan page={page} apiBase={apiBase} setApiBase={setApiBase} context={appContext} />} />
