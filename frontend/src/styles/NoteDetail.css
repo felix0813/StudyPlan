@@ -1,46 +1,68 @@
+/* c:\Users\wzf\Desktop\StudyPlan\frontend\src\styles\NoteDetail.css */
+
 .detail-main {
-  display: flex;
+  display: grid;
+  /* 定义三列：左侧固定宽，中间自适应，右侧固定宽 */
+  grid-template-columns: 280px 1fr 300px;
   gap: 32px;
   padding: 24px;
-  max-width: 1180px;
+  max-width: 1400px; /* 稍微加宽以容纳三列 */
   margin: 0 auto;
-  align-items: flex-start;
+  align-items: start;
   width: 100%;
 }
 
-.detail-content {
-  flex: 1;
-  max-width: 800px;
-  min-width: 0;
-}
-
-.detail-sidebar {
-  width: 300px;
+/* 左侧边栏样式 */
+.detail-sidebar-left {
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  gap: 24px;
+}
+
+/* 中间内容区样式 */
+.detail-content {
+  min-width: 0; /* 防止内容溢出 */
+  background: var(--surface); /* 可选：给内容区加背景 */
+  border-radius: 16px;
+  padding: 24px;
+  border: 1px solid var(--line);
+}
+
+/* 右侧边栏样式 - 悬挂效果 */
+.detail-sidebar-right {
   position: sticky;
-  top: 24px;
-  z-index: 10;
+  top: 24px; /* 距离顶部24px时悬挂 */
+  height: fit-content;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
 }
 
 /* Align hero with content */
 .detail-page-hero {
   padding-left: 24px;
   padding-right: 24px;
-  max-width: 1180px;
+  max-width: 1400px;
   margin: 0 auto;
   width: 100%;
 }
 
 .detail-page-hero .page-title {
-  max-width: 800px;
+  max-width: 100%;
   margin-left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.back-button {
+/* 新增：Header中的返回按钮样式 */
+.back-button-inline {
   align-self: flex-start;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
+  font-size: 14px;
+  padding: 4px 8px;
 }
 
 .file-tools-vertical {
@@ -58,7 +80,8 @@
 }
 
 /* Sidebar panels blending with background */
-.detail-sidebar .panel {
+.detail-sidebar-left .panel,
+.detail-sidebar-right .panel {
   background: transparent;
   border: none;
   box-shadow: none;
@@ -67,7 +90,8 @@
   margin: 0;
 }
 
-.detail-sidebar .panel h3 {
+.detail-sidebar-left .panel h3,
+.detail-sidebar-right .panel h3 {
   margin: 0 0 16px 0;
   font-size: 16px;
   color: var(--text);
@@ -198,21 +222,32 @@
   font-weight: 600;
 }
 
+/* 响应式调整 */
 @media (max-width: 1180px) {
   .detail-main {
-    flex-direction: column;
+    grid-template-columns: 1fr; /* 单列布局 */
     gap: 48px;
   }
 
-  .detail-content {
-    max-width: 100%;
-    width: 100%;
-  }
-
-  .detail-sidebar {
+  .detail-sidebar-left,
+  .detail-sidebar-right {
     width: 100%;
     position: static;
+    order: 2; /* 确保侧边栏在内容之后或之前，根据需求调整 */
+  }
+  
+  /* 在平板/小屏下，可能希望上传在顶部，列表在底部 */
+  .detail-sidebar-left {
+    order: 1;
+  }
+  
+  .detail-content {
     order: 2;
+    max-width: 100%;
+  }
+  
+  .detail-sidebar-right {
+    order: 3;
   }
 
   .detail-page-hero .page-title {
