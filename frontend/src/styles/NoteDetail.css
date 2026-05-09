@@ -1,69 +1,114 @@
-/* c:\Users\wzf\Desktop\StudyPlan\frontend\src\styles\NoteDetail.css */
+
+:root {
+  --layout-max-width: 1400px;
+  --layout-padding: 24px;
+  --sidebar-left-width: 280px;
+  --sidebar-right-width: 300px;
+}
+
+/* 整体容器对齐 */
+.detail-page-hero,
+.detail-main {
+  max-width: var(--layout-max-width);
+  margin: 0 auto;
+  width: 100%;
+  padding-left: var(--layout-padding);
+  padding-right: var(--layout-padding);
+  box-sizing: border-box;
+}
+
+.detail-page-hero {
+  /* Header 单独处理，不需要 grid，只需要保证左右边距与 main 一致 */
+  padding-top: 24px;
+  padding-bottom: 24px;
+}
+
+.detail-page-hero .page-title {
+  /* 关键：标题区域的宽度应该等于 Main 中间列的宽度 + 可能的间隙补偿 */
+  /* 这里我们让标题自然流式布局，但限制最大宽度以匹配内容区视觉重心 */
+  max-width: 100%; 
+  margin: 0 auto;
+  /* 如果希望标题严格对应中间内容区的左边缘，可以使用 margin-left 偏移，
+     但通常居中对齐或左对齐更美观。这里保持左对齐，但通过 padding 控制整体边界 */
+}
+
+/* 新增：为了视觉上让标题和下方内容左对齐，我们可以给 page-title 加一个左侧偏移
+   或者更简单的做法：让 detail-main 的 grid 中间列自动填充，而标题也左对齐。
+   下面的 Grid 布局将确保中间列的位置是固定的。
+*/
 
 .detail-main {
   display: grid;
-  /* 定义三列：左侧固定宽，中间自适应，右侧固定宽 */
-  grid-template-columns: 280px 1fr 300px;
+  /* 左侧固定 - 中间自适应(但受max-width限制) - 右侧固定 */
+  grid-template-columns: var(--sidebar-left-width) 1fr var(--sidebar-right-width);
   gap: 32px;
-  padding: 24px;
-  max-width: 1400px; /* 稍微加宽以容纳三列 */
-  margin: 0 auto;
   align-items: start;
-  width: 100%;
+  /* 移除之前的 padding，因为我们在 .detail-main 选择器上统一控制了 padding */
+  padding: 0; 
+  margin-bottom: 48px;
 }
 
-/* 左侧边栏样式 */
+/* 左侧边栏 */
 .detail-sidebar-left {
   display: flex;
   flex-direction: column;
   gap: 24px;
+  /* 确保左侧边栏在 Grid 的第一列 */
+  grid-column: 1 / 2;
 }
 
-/* 中间内容区样式 */
+/* 中间内容区 */
 .detail-content {
-  min-width: 0; /* 防止内容溢出 */
-  background: var(--surface); /* 可选：给内容区加背景 */
+  min-width: 0;
+  background: var(--surface);
   border-radius: 16px;
-  padding: 24px;
+  padding: 32px; /* 增加内部留白 */
   border: 1px solid var(--line);
+  /* 确保内容区在 Grid 的第二列 */
+  grid-column: 2 / 3;
+  width: 100%;
 }
 
-/* 右侧边栏样式 - 悬挂效果 */
+/* 右侧边栏 - 悬挂 */
 .detail-sidebar-right {
   position: sticky;
-  top: 24px; /* 距离顶部24px时悬挂 */
+  top: 24px;
   height: fit-content;
   max-height: calc(100vh - 48px);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 24px;
+  /* 确保右侧边栏在 Grid 的第三列 */
+  grid-column: 3 / 4;
 }
 
-/* Align hero with content */
-.detail-page-hero {
-  padding-left: 24px;
-  padding-right: 24px;
-  max-width: 1400px;
-  margin: 0 auto;
-  width: 100%;
-}
-
+/* 标题内部样式调整 */
 .detail-page-hero .page-title {
-  max-width: 100%;
-  margin-left: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  /* 为了让标题看起来和下方的 content 左对齐，
+     由于 content 在 grid 中间列，而 header 是全宽的，
+     我们需要计算偏移量。
+     
+     简单方案：让 Header 里的 title 容器也使用类似的 grid 或 margin 偏移。
+     但更通用的做法是：Header 左对齐，Content 左对齐。
+     只要 .detail-page-hero 和 .detail-main 的 padding-left 相同，
+     且 .detail-content 没有额外的 left margin，它们就会左对齐。
+  */
+  padding-left: 0; 
+  text-align: left;
 }
 
-/* 新增：Header中的返回按钮样式 */
 .back-button-inline {
   align-self: flex-start;
-  margin-bottom: 4px;
+  margin-bottom: 8px;
   font-size: 14px;
   padding: 4px 8px;
 }
+
+/* 其他原有样式保持不变... */
 
 .file-tools-vertical {
   display: flex;
@@ -79,7 +124,6 @@
   margin-top: 16px;
 }
 
-/* Sidebar panels blending with background */
 .detail-sidebar-left .panel,
 .detail-sidebar-right .panel {
   background: transparent;
@@ -225,46 +269,33 @@
 /* 响应式调整 */
 @media (max-width: 1180px) {
   .detail-main {
-    grid-template-columns: 1fr; /* 单列布局 */
-    gap: 48px;
+    grid-template-columns: 1fr; /* 单列 */
+    gap: 32px;
   }
 
   .detail-sidebar-left,
-  .detail-sidebar-right {
+  .detail-sidebar-right,
+  .detail-content {
+    grid-column: 1 / -1; /* 占满全宽 */
     width: 100%;
     position: static;
-    order: 2; /* 确保侧边栏在内容之后或之前，根据需求调整 */
-  }
-  
-  /* 在平板/小屏下，可能希望上传在顶部，列表在底部 */
-  .detail-sidebar-left {
-    order: 1;
-  }
-  
-  .detail-content {
-    order: 2;
-    max-width: 100%;
-  }
-  
-  .detail-sidebar-right {
-    order: 3;
   }
 
+  /* 调整顺序：上传 -> 内容 -> 列表 */
+  .detail-sidebar-left { order: 1; }
+  .detail-content { order: 2; }
+  .detail-sidebar-right { order: 3; }
+  
   .detail-page-hero .page-title {
     max-width: 100%;
   }
 }
 
 @media (max-width: 640px) {
-  .detail-main {
-    padding: 16px;
+  :root {
+    --layout-padding: 16px;
   }
-
-  .detail-page-hero {
-    padding-left: 16px;
-    padding-right: 16px;
-  }
-
+  
   .content-header h2 {
     font-size: 24px;
   }
