@@ -1,26 +1,26 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import Topbar from "../components/Topbar";
-import EmptyState from "../components/EmptyState";
-import "../styles/NoteDetail.css";
+import React, { useState, useEffect, useCallback } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import Topbar from '../components/Topbar'
+import EmptyState from '../components/EmptyState'
+import '../styles/NoteDetail.css'
 
 function formatDate(value) {
-  if (!value) return "未知时间";
-  return new Intl.DateTimeFormat("zh-CN", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
+  if (!value) return '未知时间'
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value))
 }
 
 function formatBytes(bytes) {
-  if (!Number.isFinite(bytes)) return "未知大小";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  if (!Number.isFinite(bytes)) return '未知大小'
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
 function PageHero({
@@ -33,96 +33,105 @@ function PageHero({
 }) {
   return (
     <header className="hero page-hero detail-page-hero">
-      <Topbar apiBase={apiBase} setApiBase={setApiBase} showToast={showToast} />
-      <div className="page-title">
-        {/* 返回按钮在标题左侧 */}
-        <button
-          className="button ghost back-button-inline"
-          onClick={() => window.history.back()}
-        >
-          ← 返回主题列表
-        </button>
-        <p className="eyebrow">{eyebrow}</p>
-        <h1>{title}</h1>
-        <p>{description}</p>
+      <div
+        className="page-title-container"
+        style={{ maxWidth: '100%', padding: '0 var(--layout-padding)' }}
+      >
+        <Topbar
+          apiBase={apiBase}
+          setApiBase={setApiBase}
+          showToast={showToast}
+        />
+        <div className="page-title">
+          {/* 返回按钮在标题左侧 */}
+          <button
+            className="button ghost back-button-inline"
+            onClick={() => window.history.back()}
+          >
+            ← 返回主题列表
+          </button>
+          <p className="eyebrow">{eyebrow}</p>
+          <h1>{title}</h1>
+          <p>{description}</p>
+        </div>
       </div>
     </header>
-  );
+  )
 }
 
 export default function NoteDetail({ apiBase, setApiBase, context }) {
-  const { titleId } = useParams();
-  const navigate = useNavigate();
-  const [title, setTitle] = useState(null);
-  const [files, setFiles] = useState([]);
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [content, setContent] = useState("");
-  const [loadingContent, setLoadingContent] = useState(false);
+  const { titleId } = useParams()
+  const navigate = useNavigate()
+  const [title, setTitle] = useState(null)
+  const [files, setFiles] = useState([])
+  const [selectedFile, setSelectedFile] = useState(null)
+  const [content, setContent] = useState('')
+  const [loadingContent, setLoadingContent] = useState(false)
 
   const loadData = useCallback(async () => {
     try {
       const titleData = await context.request(
         `/study/titles/${encodeURIComponent(titleId)}`,
-      );
-      setTitle(titleData);
+      )
+      setTitle(titleData)
       const filesData = await context.request(
         `/study/titles/${encodeURIComponent(titleId)}/files`,
-      );
-      setFiles(Array.isArray(filesData) ? filesData : []);
+      )
+      setFiles(Array.isArray(filesData) ? filesData : [])
     } catch (error) {
-      context.showToast(error.message, "error");
-      navigate("/notes");
+      context.showToast(error.message, 'error')
+      navigate('/notes')
     }
-  }, [titleId, context, navigate]);
+  }, [titleId, context, navigate])
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    loadData()
+  }, [loadData])
 
   const uploadFiles = async (event) => {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const input = form.querySelector('input[type="file"]');
+    event.preventDefault()
+    const form = event.currentTarget
+    const input = form.querySelector('input[type="file"]')
     if (!input.files.length) {
-      context.showToast("请选择至少一个笔记文件", "error");
-      return;
+      context.showToast('请选择至少一个笔记文件', 'error')
+      return
     }
-    const data = new FormData();
-    Array.from(input.files).forEach((file) => data.append("files", file));
-    context.setBusy((value) => ({ ...value, [`upload-${titleId}`]: true }));
+    const data = new FormData()
+    Array.from(input.files).forEach((file) => data.append('files', file))
+    context.setBusy((value) => ({ ...value, [`upload-${titleId}`]: true }))
     try {
       await context.request(
         `/study/titles/${encodeURIComponent(titleId)}/files`,
-        { method: "POST", body: data },
-      );
-      input.value = "";
-      await loadData();
-      context.showToast("笔记已上传");
+        { method: 'POST', body: data },
+      )
+      input.value = ''
+      await loadData()
+      context.showToast('笔记已上传')
     } catch (error) {
-      context.showToast(error.message, "error");
+      context.showToast(error.message, 'error')
     } finally {
-      context.setBusy((value) => ({ ...value, [`upload-${titleId}`]: false }));
+      context.setBusy((value) => ({ ...value, [`upload-${titleId}`]: false }))
     }
-  };
+  }
 
   const viewFile = async (file) => {
-    setSelectedFile(file);
-    setLoadingContent(true);
-    setContent("");
+    setSelectedFile(file)
+    setLoadingContent(true)
+    setContent('')
     try {
-      const rawUrl = `${apiBase}/study/files/${encodeURIComponent(file.id)}/content`;
-      const response = await fetch(rawUrl);
-      if (!response.ok) throw new Error("无法获取笔记内容");
-      const md = await response.text();
-      setContent(md);
+      const rawUrl = `${apiBase}/study/files/${encodeURIComponent(file.id)}/content`
+      const response = await fetch(rawUrl)
+      if (!response.ok) throw new Error('无法获取笔记内容')
+      const md = await response.text()
+      setContent(md)
     } catch (error) {
-      context.showToast(error.message, "error");
+      context.showToast(error.message, 'error')
     } finally {
-      setLoadingContent(false);
+      setLoadingContent(false)
     }
-  };
+  }
 
-  if (!title) return null;
+  if (!title) return null
 
   return (
     <>
@@ -154,7 +163,7 @@ export default function NoteDetail({ apiBase, setApiBase, context }) {
                 type="submit"
                 disabled={context.busy[`upload-${titleId}`]}
               >
-                {context.busy[`upload-${titleId}`] ? "上传中..." : "上传笔记"}
+                {context.busy[`upload-${titleId}`] ? '上传中...' : '上传笔记'}
               </button>
             </form>
           </section>
@@ -168,7 +177,7 @@ export default function NoteDetail({ apiBase, setApiBase, context }) {
                 <div className="content-header">
                   <h2>{selectedFile.filename}</h2>
                   <p>
-                    {formatBytes(selectedFile.size)} ·{" "}
+                    {formatBytes(selectedFile.size)} ·{' '}
                     {formatDate(selectedFile.created_at)}
                   </p>
                 </div>
@@ -199,7 +208,7 @@ export default function NoteDetail({ apiBase, setApiBase, context }) {
               {files.length ? (
                 files.map((file) => (
                   <div
-                    className={`file-item-mini ${selectedFile?.id === file.id ? "active" : ""}`}
+                    className={`file-item-mini ${selectedFile?.id === file.id ? 'active' : ''}`}
                     key={file.id}
                     onClick={() => viewFile(file)}
                   >
@@ -215,5 +224,5 @@ export default function NoteDetail({ apiBase, setApiBase, context }) {
         </aside>
       </main>
     </>
-  );
+  )
 }

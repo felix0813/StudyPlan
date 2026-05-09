@@ -1,4 +1,3 @@
-
 :root {
   --content-width: 800px;
   --layout-padding: 32px;
@@ -18,50 +17,47 @@
 }
 
 .detail-page-hero .page-title {
-  max-width: var(--content-width);
-  margin: 0 auto;
-  padding: 0 24px;
+  max-width: 100%;
+  margin: 0;
+  padding: 0 var(--layout-padding);
   display: flex;
   flex-direction: column;
   gap: 8px;
   text-align: left;
+  margin-top: 4px;
 }
 
 .detail-main {
   display: grid;
-  /* 左侧空白 - 中间固定内容区 - 右侧空白 */
-  grid-template-columns: 1fr var(--content-width) 1fr;
-  gap: 32px;
+  grid-template-columns: 1fr 2fr 1fr;
+  gap: 24px;
   align-items: start;
   padding: 0 var(--layout-padding);
   margin-bottom: 48px;
 }
 
-/* 左侧边栏 - 放在最左侧 */
+/* 左侧边栏 - 上传区域 */
 .detail-sidebar-left {
   display: flex;
   flex-direction: column;
   gap: 24px;
-  grid-column: 1 / 2;
-  justify-self: start;
+  justify-self: stretch;
   position: sticky;
   top: 24px;
-  width: var(--sidebar-width);
-  max-width: 100%;
+  width: 100%;
 }
 
-/* 中间内容区 */
+/* 中间内容区 - 笔记显示区域 */
 .detail-content {
   min-width: 0;
   background: var(--surface);
   border-radius: 16px;
   padding: 32px;
   border: 1px solid var(--line);
-  grid-column: 2 / 3;
   width: 100%;
 }
 
-/* 右侧边栏 - 放在最右侧 */
+/* 右侧边栏 - 笔记列表 */
 .detail-sidebar-right {
   position: sticky;
   top: 24px;
@@ -71,10 +67,8 @@
   display: flex;
   flex-direction: column;
   gap: 24px;
-  grid-column: 3 / 4;
-  justify-self: end;
-  width: var(--sidebar-width);
-  max-width: 100%;
+  justify-self: stretch;
+  width: 100%;
 }
 
 .back-button-inline {
@@ -181,7 +175,9 @@
   font-size: 16px;
 }
 
-.markdown-body h1, .markdown-body h2, .markdown-body h3 {
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3 {
   margin-top: 32px;
   margin-bottom: 16px;
   letter-spacing: -0.02em;
@@ -232,7 +228,8 @@
   border-collapse: collapse;
 }
 
-.markdown-body th, .markdown-body td {
+.markdown-body th,
+.markdown-body td {
   padding: 12px 16px;
   border: 1px solid var(--line);
 }
@@ -253,19 +250,25 @@
   .detail-sidebar-left,
   .detail-sidebar-right,
   .detail-content {
-    grid-column: 1 / -1;
     width: 100%;
     position: static;
     justify-self: stretch;
   }
 
-  .detail-sidebar-left { order: 1; }
-  .detail-content { order: 2; }
-  .detail-sidebar-right { order: 3; }
-  
+  .detail-sidebar-left {
+    order: 1;
+  }
+
+  .detail-content {
+    order: 2;
+  }
+
+  .detail-sidebar-right {
+    order: 3;
+  }
+
   .detail-page-hero .page-title {
-    max-width: 100%;
-    padding: 0 24px;
+    padding: 0 var(--layout-padding);
   }
 }
 
@@ -273,7 +276,7 @@
   :root {
     --layout-padding: 16px;
   }
-  
+
   .content-header h2 {
     font-size: 24px;
   }
