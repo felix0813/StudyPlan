@@ -1,0 +1,127 @@
+.detail-main {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 24px;
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.detail-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.back-button {
+  align-self: flex-start;
+  margin-bottom: 8px;
+}
+
+.file-tools-vertical {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.file-list-vertical {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.file-item-mini {
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.file-item-mini:hover {
+  border-color: var(--primary);
+  background: var(--surface-strong);
+}
+
+.file-item-mini.active {
+  border-color: var(--primary);
+  background: var(--primary-subtle);
+  box-shadow: 0 0 0 1px var(--primary);
+}
+
+.file-item-mini strong {
+  font-size: 14px;
+  word-break: break-all;
+}
+
+.file-item-mini span {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.content-header {
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.content-header h2 {
+  margin: 0 0 8px 0;
+  font-size: 28px;
+}
+
+.content-header p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.markdown-body {
+  line-height: 1.6;
+  color: var(--foreground);
+}
+
+.markdown-body h1, .markdown-body h2, .markdown-body h3 {
+  margin-top: 24px;
+  margin-bottom: 16px;
+}
+
+.markdown-body p {
+  margin-bottom: 16px;
+}
+
+.markdown-body code {
+  background: var(--surface-strong);
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.markdown-body pre {
+  background: var(--surface-strong);
+  padding: 16px;
+  border-radius: 12px;
+  overflow-x: auto;
+  margin-bottom: 16px;
+}
+
+@media (max-width: 960px) {
+  .detail-main {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-sidebar {
+    order: 2;
+  }
+
+  .detail-content {
+    order: 1;
+  }
+}

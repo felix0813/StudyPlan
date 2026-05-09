@@ -188,6 +188,18 @@ func (s *Store) CreateTitle(ctx context.Context, name string) (model.Title, erro
 	return title, nil
 }
 
+func (s *Store) GetTitle(ctx context.Context, id string) (model.Title, error) {
+	var title model.Title
+	err := s.pool.QueryRow(ctx, `SELECT id, name, updated_at, created_at FROM titles WHERE id = $1`, id).Scan(&title.ID, &title.Name, &title.UpdatedAt, &title.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return model.Title{}, model.ErrNotFound
+	}
+	if err != nil {
+		return model.Title{}, fmt.Errorf("get title: %w", err)
+	}
+	return title, nil
+}
+
 func (s *Store) ListTitles(ctx context.Context) ([]model.Title, error) {
 	rows, err := s.pool.Query(ctx, `SELECT id, name, updated_at, created_at FROM titles ORDER BY updated_at DESC`)
 	if err != nil {
@@ -236,6 +248,18 @@ func (s *Store) TitleExists(ctx context.Context, id string) (bool, error) {
 		return false, fmt.Errorf("check title exists: %w", err)
 	}
 	return exists, nil
+}
+
+func (s *Store) GetFile(ctx context.Context, id string) (model.StudyFile, error) {
+	var file model.StudyFile
+	err := s.pool.QueryRow(ctx, `SELECT id, title_id, filename, oss_key, size_bytes, content_type, created_at FROM study_files WHERE id = $1`, id).Scan(&file.ID, &file.TitleID, &file.Filename, &file.OSSKey, &file.Size, &file.ContentType, &file.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return model.StudyFile{}, model.ErrNotFound
+	}
+	if err != nil {
+		return model.StudyFile{}, fmt.Errorf("get study file: %w", err)
+	}
+	return file, nil
 }
 
 func (s *Store) AddFile(ctx context.Context, file model.StudyFile) (model.StudyFile, error) {

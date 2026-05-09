@@ -95,7 +95,7 @@ export default function Plan({ apiBase, setApiBase, context }) {
             </div>
           </form>
           <div className="task-list" aria-live="polite">
-            {context.plan.length ? context.plan.map((item) => (
+            {context.plan.length ? [...context.plan].sort((a, b) => (a.status === b.status ? 0 : a.status ? 1 : -1)).map((item) => (
               <article className="task-item" key={item.id}>
                 <input className="task-check" type="checkbox" checked={Boolean(item.status)} disabled={context.busy[`plan-${item.id}`]} aria-label={`标记进度：${item.content}`} onChange={(event) => updatePlanItemStatus(item.id, event.target.checked)} />
                 <div className={`task-content ${item.status ? 'completed' : ''}`}>{item.content}</div>

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Topbar from '../components/Topbar';
 import EmptyState from '../components/EmptyState';
 import '../styles/Notes.css';
@@ -33,41 +34,20 @@ function PageHero({ title, eyebrow, description, apiBase, setApiBase, showToast 
   );
 }
 
-function FileList({ files }) {
-  if (!files) return <div className="empty-state"><strong>还未查看笔记</strong><p>点击“查看笔记”即可展开。</p></div>;
-  if (!files.length) return <div className="empty-state"><strong>暂无笔记</strong><p>上传笔记后会显示在这里。</p></div>;
-  return files.map((file) => (
-    <div className="file-item" key={file.id || file.filename}>
-      <div>
-        <strong>{file.filename}</strong><br />
-        <span>{formatBytes(file.size)} · {formatDate(file.created_at)}</span>
-      </div>
-      <span>已保存</span>
-    </div>
-  ));
-}
-
-function TitleCard({ title, files, uploadBusy, onRename, onDelete, onLoadFiles, onUploadFiles }) {
+function TitleCard({ title, onRename, onDelete, onViewNotes }) {
   return (
     <article className="title-card">
       <div className="title-main">
         <div>
           <h3>{title.name}</h3>
-          <p>更新 {formatDate(title.updated_at)} · 创建 {formatDate(title.created_at)}</p>
-        </div>
-        <div className="title-actions">
-          <button className="button ghost" type="button" onClick={onRename}>改名</button>
-          <button className="button subtle" type="button" onClick={onLoadFiles}>查看笔记</button>
-          <button className="button danger" type="button" onClick={onDelete}>删除</button>
+          <p>更新 {formatDate(title.updated_at)}</p>
+          <p>创建 {formatDate(title.created_at)}</p>
         </div>
       </div>
-      <form className="file-tools" onSubmit={onUploadFiles}>
-        <input type="file" name="files" accept=".md,.markdown,text/markdown" multiple aria-label="选择笔记文件" />
-        <button className="button primary" type="submit" disabled={uploadBusy}>{uploadBusy ? '上传中...' : '上传笔记'}</button>
-        <button className="button ghost" type="button" onClick={onLoadFiles}>刷新</button>
-      </form>
-      <div className="file-list">
-        <FileList files={files} />
+      <div className="title-actions">
+        <button className="button ghost" type="button" onClick={onRename}>改名</button>
+        <button className="button subtle" type="button" onClick={onViewNotes}>查看笔记</button>
+        <button className="button danger" type="button" onClick={onDelete}>删除</button>
       </div>
     </article>
   );
@@ -75,6 +55,7 @@ function TitleCard({ title, files, uploadBusy, onRename, onDelete, onLoadFiles, 
 
 export default function Notes({ apiBase, setApiBase, context }) {
   const [titleName, setTitleName] = useState('');
+  const navigate = useNavigate();
 
   const createTitle = async (event) => {
     event.preventDefault();
@@ -179,12 +160,9 @@ export default function Notes({ apiBase, setApiBase, context }) {
               <TitleCard
                 key={title.id}
                 title={title}
-                files={context.filesByTitle[title.id]}
-                uploadBusy={context.busy[`upload-${title.id}`]}
                 onRename={() => renameTitle(title)}
                 onDelete={() => deleteTitle(title)}
-                onLoadFiles={() => context.loadFilesForTitle(title.id)}
-                onUploadFiles={(event) => uploadFiles(event, title.id)}
+                onViewNotes={() => navigate(`/notes/${title.id}`)}
               />
             )) : <EmptyState message="还没有主题" detail="添加笔记主题后，这里会显示内容。" />}
           </div>

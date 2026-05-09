@@ -3,6 +3,7 @@ import { Routes, Route, useLocation } from 'react-router-dom';
 import Home from './pages/Home';
 import Plan from './pages/Plan';
 import Notes from './pages/Notes';
+import NoteDetail from './pages/NoteDetail';
 import Toast from './components/Toast';
 import { request, getDefaultApiBase } from './services/api';
 import './styles/App.css';
@@ -28,7 +29,7 @@ export default function App() {
   const page = useMemo(() => {
     if (location.pathname === '/') return 'home';
     if (location.pathname === '/plan') return 'plan';
-    if (location.pathname === '/notes') return 'notes';
+    if (location.pathname.startsWith('/notes')) return 'notes';
     return 'home';
   }, [location.pathname]);
 
@@ -96,10 +97,7 @@ export default function App() {
     const data = await apiRequest('/study/titles');
     const nextTitles = Array.isArray(data) ? data : [];
     setTitles(nextTitles);
-    nextTitles.forEach((title) => {
-      loadFilesForTitle(title.id, true);
-    });
-  }, [apiRequest, loadFilesForTitle]);
+  }, [apiRequest]);
 
   const checkHealth = useCallback(async () => {
     try {
@@ -177,6 +175,7 @@ export default function App() {
         <Route path="/" element={<Home page={page} apiBase={apiBase} setApiBase={setApiBase} health={health} lastSync={lastSync} context={appContext} />} />
         <Route path="/plan" element={<Plan page={page} apiBase={apiBase} setApiBase={setApiBase} context={appContext} />} />
         <Route path="/notes" element={<Notes page={page} apiBase={apiBase} setApiBase={setApiBase} context={appContext} />} />
+        <Route path="/notes/:titleId" element={<NoteDetail page={page} apiBase={apiBase} setApiBase={setApiBase} context={appContext} />} />
       </Routes>
       <Toast toast={toast} />
     </div>

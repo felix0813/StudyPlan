@@ -47,6 +47,30 @@ func (s *OSSStore) Ping(ctx context.Context) error {
 	}
 }
 
+func (s *OSSStore) GetMarkdown(ctx context.Context, key string) (io.ReadCloser, error) {
+	done := make(chan struct {
+		rc  io.ReadCloser
+		err error
+	}, 1)
+	go func() {
+		rc, err := s.bucket.GetObject(key)
+		done <- struct {
+			rc  io.ReadCloser
+			err error
+		}{rc, err}
+	}()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case res := <-done:
+		if res.err != nil {
+			s.logger.Error("oss get object failed", "key", key, "error", res.err)
+			return nil, fmt.Errorf("get markdown object: %w", res.err)
+		}
+		return res.rc, nil
+	}
+}
+
 func (s *OSSStore) PutMarkdown(ctx context.Context, titleID, fileID, filename string, reader io.Reader) (string, error) {
 	key := path.Join(s.prefix, "titles", titleID, fileID+"-"+sanitizeFilename(filename))
 	done := make(chan error, 1)
