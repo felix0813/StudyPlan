@@ -27,9 +27,11 @@ type Store interface {
 	UpdatePlanItemStatus(context.Context, string, bool) (model.PlanItem, error)
 	CreateTitle(context.Context, string) (model.Title, error)
 	ListTitles(context.Context) ([]model.Title, error)
+	GetTitle(context.Context, string) (model.Title, error)
 	UpdateTitle(context.Context, string, string) (model.Title, error)
 	DeleteTitle(context.Context, string) error
 	TitleExists(context.Context, string) (bool, error)
+	GetFile(context.Context, string) (model.StudyFile, error)
 	AddFile(context.Context, model.StudyFile) (model.StudyFile, error)
 	ListFiles(context.Context, string) ([]model.StudyFile, error)
 }
@@ -37,6 +39,7 @@ type Store interface {
 type ObjectStore interface {
 	Ping(context.Context) error
 	PutMarkdown(context.Context, string, string, string, io.Reader) (string, error)
+	GetMarkdown(context.Context, string) (io.ReadCloser, error)
 }
 
 var errInvalidMarkdownFile = errors.New("only markdown files are allowed")
@@ -82,6 +85,8 @@ func (h *Handler) route(w http.ResponseWriter, r *http.Request) {
 		h.createTitle(w, r)
 	case r.Method == http.MethodGet && path == "/study/titles":
 		h.listTitles(w, r)
+	case r.Method == http.MethodGet && strings.HasPrefix(path, "/study/titles/") && !strings.Contains(strings.TrimPrefix(path, "/study/titles/"), "/"):
+		h.getTitle(w, r, strings.TrimPrefix(path, "/study/titles/"))
 	case r.Method == http.MethodPatch && strings.HasPrefix(path, "/study/titles/") && !strings.Contains(strings.TrimPrefix(path, "/study/titles/"), "/"):
 		h.updateTitle(w, r, strings.TrimPrefix(path, "/study/titles/"))
 	case r.Method == http.MethodDelete && strings.HasPrefix(path, "/study/titles/") && !strings.Contains(strings.TrimPrefix(path, "/study/titles/"), "/"):
@@ -90,6 +95,8 @@ func (h *Handler) route(w http.ResponseWriter, r *http.Request) {
 		h.uploadFiles(w, r, path)
 	case r.Method == http.MethodGet && strings.HasPrefix(path, "/study/titles/") && strings.HasSuffix(path, "/files"):
 		h.listFiles(w, r, path)
+	case r.Method == http.MethodGet && strings.HasPrefix(path, "/study/files/") && strings.HasSuffix(path, "/content"):
+		h.getFileContent(w, r, path)
 	default:
 		writeError(w, http.StatusNotFound, "route not found")
 	}
@@ -238,6 +245,20 @@ func (h *Handler) listTitles(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, titles)
 }
 
+func (h *Handler) getTitle(w http.ResponseWriter, r *http.Request, id string) {
+	title, err := h.store.GetTitle(r.Context(), id)
+	if errors.Is(err, model.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "title not found")
+		return
+	}
+	if err != nil {
+		h.logger.Error("get title failed", "id", id, "error", err)
+		writeError(w, http.StatusInternalServerError, "get title failed")
+		return
+	}
+	writeJSON(w, http.StatusOK, title)
+}
+
 func (h *Handler) updateTitle(w http.ResponseWriter, r *http.Request, id string) {
 	var body struct {
 		Name string `json:"name"`
@@ -340,6 +361,33 @@ func (h *Handler) saveUploadedFile(ctx context.Context, titleID string, header *
 		Size:        header.Size,
 		ContentType: "text/markdown; charset=utf-8",
 	})
+}
+
+func (h *Handler) getFileContent(w http.ResponseWriter, r *http.Request, path string) {
+	fileID := strings.TrimSuffix(strings.TrimPrefix(path, "/study/files/"), "/content")
+	file, err := h.store.GetFile(r.Context(), fileID)
+	if errors.Is(err, model.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "file not found")
+		return
+	}
+	if err != nil {
+		h.logger.Error("get file failed before content fetch", "file_id", fileID, "error", err)
+		writeError(w, http.StatusInternalServerError, "get file failed")
+		return
+	}
+
+	rc, err := h.objects.GetMarkdown(r.Context(), file.OSSKey)
+	if err != nil {
+		h.logger.Error("fetch markdown content failed", "file_id", fileID, "oss_key", file.OSSKey, "error", err)
+		writeError(w, http.StatusInternalServerError, "fetch content failed")
+		return
+	}
+	defer rc.Close()
+
+	w.Header().Set("Content-Type", file.ContentType)
+	if _, err := io.Copy(w, rc); err != nil {
+		h.logger.Error("stream markdown content failed", "file_id", fileID, "error", err)
+	}
 }
 
 func (h *Handler) listFiles(w http.ResponseWriter, r *http.Request, path string) {
