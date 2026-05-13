@@ -44,16 +44,24 @@ type ObjectStore interface {
 
 var errInvalidMarkdownFile = errors.New("only markdown files are allowed")
 
+type Cache interface {
+	Get(ctx context.Context, key string, target any) error
+	Set(ctx context.Context, key string, value any, expiration time.Duration) error
+	Delete(ctx context.Context, keys ...string) error
+	Ping(ctx context.Context) error
+}
+
 type Handler struct {
 	store       Store
 	objects     ObjectStore
+	cache       Cache
 	logger      *slog.Logger
 	maxUpload   int64
 	healthLimit time.Duration
 }
 
-func New(store Store, objects ObjectStore, logger *slog.Logger) *Handler {
-	return &Handler{store: store, objects: objects, logger: logger, maxUpload: 32 << 20, healthLimit: 5 * time.Second}
+func New(store Store, objects ObjectStore, cache Cache, logger *slog.Logger) *Handler {
+	return &Handler{store: store, objects: objects, cache: cache, logger: logger, maxUpload: 32 << 20, healthLimit: 5 * time.Second}
 }
 
 func (h *Handler) Routes() http.Handler {
@@ -108,8 +116,9 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 
 	pgErr := h.store.Ping(ctx)
 	ossErr := h.objects.Ping(ctx)
+	redisErr := h.cache.Ping(ctx)
 	status := http.StatusOK
-	response := map[string]any{"status": "ok", "postgres": "ok", "oss": "ok"}
+	response := map[string]any{"status": "ok", "postgres": "ok", "oss": "ok", "redis": "ok"}
 	if pgErr != nil {
 		h.logger.Error("health check postgres failed", "error", pgErr)
 		response["status"] = "degraded"
@@ -120,6 +129,12 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 		h.logger.Error("health check oss failed", "error", ossErr)
 		response["status"] = "degraded"
 		response["oss"] = ossErr.Error()
+		status = http.StatusServiceUnavailable
+	}
+	if redisErr != nil {
+		h.logger.Error("health check redis failed", "error", redisErr)
+		response["status"] = "degraded"
+		response["redis"] = redisErr.Error()
 		status = http.StatusServiceUnavailable
 	}
 	writeJSON(w, status, response)
@@ -148,36 +163,79 @@ func (h *Handler) replacePlan(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "replace plan failed")
 		return
 	}
+
+	if err := h.cache.Delete(r.Context(), "study:plan", "study:plan:status", "study:plan:next"); err != nil {
+		h.logger.Warn("invalidate plan cache failed", "error", err)
+	}
+
 	writeJSON(w, http.StatusCreated, map[string]any{"message": "plan saved", "count": len(items)})
 }
 
 func (h *Handler) getPlan(w http.ResponseWriter, r *http.Request) {
+	var items []model.PlanItem
+	key := "study:plan"
+	if err := h.cache.Get(r.Context(), key, &items); err == nil {
+		writeJSON(w, http.StatusOK, items)
+		return
+	}
+
 	items, err := h.store.ListPlan(r.Context())
 	if err != nil {
 		h.logger.Error("list plan failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "list plan failed")
 		return
 	}
+
+	if err := h.cache.Set(r.Context(), key, items, 1*time.Hour); err != nil {
+		h.logger.Warn("cache plan failed", "error", err)
+	}
 	writeJSON(w, http.StatusOK, items)
 }
 
 func (h *Handler) getPlanStatus(w http.ResponseWriter, r *http.Request) {
+	var summary model.PlanSummary
+	key := "study:plan:status"
+	if err := h.cache.Get(r.Context(), key, &summary); err == nil {
+		writeJSON(w, http.StatusOK, summary)
+		return
+	}
+
 	summary, err := h.store.PlanSummary(r.Context())
 	if err != nil {
 		h.logger.Error("get plan status failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "get plan status failed")
 		return
 	}
+
+	if err := h.cache.Set(r.Context(), key, summary, 1*time.Hour); err != nil {
+		h.logger.Warn("cache plan status failed", "error", err)
+	}
 	writeJSON(w, http.StatusOK, summary)
 }
 
 func (h *Handler) getNextPlanItem(w http.ResponseWriter, r *http.Request) {
+	var item *model.PlanItem
+	key := "study:plan:next"
+	if err := h.cache.Get(r.Context(), key, &item); err == nil {
+		if item == nil {
+			writeJSON(w, http.StatusOK, map[string]any{"item": nil, "message": "all plan items completed"})
+		} else {
+			writeJSON(w, http.StatusOK, item)
+		}
+		return
+	}
+
 	item, err := h.store.NextPlanItem(r.Context())
 	if err != nil {
 		h.logger.Error("get next plan item failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "get next plan item failed")
 		return
 	}
+
+	if err := h.cache.Set(r.Context(), key, item, 1*time.Hour); err != nil {
+		h.logger.Warn("cache next plan item failed", "error", err)
+	}
+
 	if item == nil {
 		writeJSON(w, http.StatusOK, map[string]any{"item": nil, "message": "all plan items completed"})
 		return
@@ -210,6 +268,11 @@ func (h *Handler) updatePlanItemStatus(w http.ResponseWriter, r *http.Request, p
 		writeError(w, http.StatusInternalServerError, "update plan item status failed")
 		return
 	}
+
+	if err := h.cache.Delete(r.Context(), "study:plan", "study:plan:status", "study:plan:next"); err != nil {
+		h.logger.Warn("invalidate plan cache after status update failed", "id", id, "error", err)
+	}
+
 	writeJSON(w, http.StatusOK, item)
 }
 
@@ -232,20 +295,43 @@ func (h *Handler) createTitle(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "create title failed")
 		return
 	}
+
+	if err := h.cache.Delete(r.Context(), "study:titles"); err != nil {
+		h.logger.Warn("invalidate titles cache after create failed", "error", err)
+	}
+
 	writeJSON(w, http.StatusCreated, title)
 }
 
 func (h *Handler) listTitles(w http.ResponseWriter, r *http.Request) {
+	var titles []model.Title
+	key := "study:titles"
+	if err := h.cache.Get(r.Context(), key, &titles); err == nil {
+		writeJSON(w, http.StatusOK, titles)
+		return
+	}
+
 	titles, err := h.store.ListTitles(r.Context())
 	if err != nil {
 		h.logger.Error("list titles failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "list titles failed")
 		return
 	}
+
+	if err := h.cache.Set(r.Context(), key, titles, 1*time.Hour); err != nil {
+		h.logger.Warn("cache titles failed", "error", err)
+	}
 	writeJSON(w, http.StatusOK, titles)
 }
 
 func (h *Handler) getTitle(w http.ResponseWriter, r *http.Request, id string) {
+	var title model.Title
+	key := fmt.Sprintf("study:titles:%s", id)
+	if err := h.cache.Get(r.Context(), key, &title); err == nil {
+		writeJSON(w, http.StatusOK, title)
+		return
+	}
+
 	title, err := h.store.GetTitle(r.Context(), id)
 	if errors.Is(err, model.ErrNotFound) {
 		writeError(w, http.StatusNotFound, "title not found")
@@ -255,6 +341,10 @@ func (h *Handler) getTitle(w http.ResponseWriter, r *http.Request, id string) {
 		h.logger.Error("get title failed", "id", id, "error", err)
 		writeError(w, http.StatusInternalServerError, "get title failed")
 		return
+	}
+
+	if err := h.cache.Set(r.Context(), key, title, 1*time.Hour); err != nil {
+		h.logger.Warn("cache title failed", "id", id, "error", err)
 	}
 	writeJSON(w, http.StatusOK, title)
 }
@@ -282,6 +372,11 @@ func (h *Handler) updateTitle(w http.ResponseWriter, r *http.Request, id string)
 		writeError(w, http.StatusInternalServerError, "update title failed")
 		return
 	}
+
+	if err := h.cache.Delete(r.Context(), "study:titles", fmt.Sprintf("study:titles:%s", id)); err != nil {
+		h.logger.Warn("invalidate titles cache after update failed", "id", id, "error", err)
+	}
+
 	writeJSON(w, http.StatusOK, title)
 }
 
@@ -294,6 +389,11 @@ func (h *Handler) deleteTitle(w http.ResponseWriter, r *http.Request, id string)
 		writeError(w, http.StatusInternalServerError, "delete title failed")
 		return
 	}
+
+	if err := h.cache.Delete(r.Context(), "study:titles", fmt.Sprintf("study:titles:%s", id), fmt.Sprintf("study:titles:%s:files", id)); err != nil {
+		h.logger.Warn("invalidate titles cache after delete failed", "id", id, "error", err)
+	}
+
 	writeJSON(w, http.StatusOK, map[string]string{"message": "title deleted"})
 }
 
@@ -335,6 +435,11 @@ func (h *Handler) uploadFiles(w http.ResponseWriter, r *http.Request, path strin
 		}
 		saved = append(saved, file)
 	}
+
+	if err := h.cache.Delete(r.Context(), fmt.Sprintf("study:titles:%s:files", titleID)); err != nil {
+		h.logger.Warn("invalidate files cache after upload failed", "title_id", titleID, "error", err)
+	}
+
 	writeJSON(w, http.StatusCreated, saved)
 }
 
@@ -392,6 +497,14 @@ func (h *Handler) getFileContent(w http.ResponseWriter, r *http.Request, path st
 
 func (h *Handler) listFiles(w http.ResponseWriter, r *http.Request, path string) {
 	titleID := strings.TrimSuffix(strings.TrimPrefix(path, "/study/titles/"), "/files")
+
+	var files []model.StudyFile
+	key := fmt.Sprintf("study:titles:%s:files", titleID)
+	if err := h.cache.Get(r.Context(), key, &files); err == nil {
+		writeJSON(w, http.StatusOK, files)
+		return
+	}
+
 	exists, err := h.store.TitleExists(r.Context(), titleID)
 	if err != nil {
 		h.logger.Error("check title before list files failed", "title_id", titleID, "error", err)
@@ -402,11 +515,15 @@ func (h *Handler) listFiles(w http.ResponseWriter, r *http.Request, path string)
 		writeError(w, http.StatusNotFound, "title not found")
 		return
 	}
-	files, err := h.store.ListFiles(r.Context(), titleID)
+	files, err = h.store.ListFiles(r.Context(), titleID)
 	if err != nil {
 		h.logger.Error("list files failed", "title_id", titleID, "error", err)
 		writeError(w, http.StatusInternalServerError, "list files failed")
 		return
+	}
+
+	if err := h.cache.Set(r.Context(), key, files, 1*time.Hour); err != nil {
+		h.logger.Warn("cache files failed", "title_id", titleID, "error", err)
 	}
 	writeJSON(w, http.StatusOK, files)
 }
