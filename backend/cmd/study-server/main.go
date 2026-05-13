@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"studyplan/backend/internal/cache"
 	"studyplan/backend/internal/config"
 	"studyplan/backend/internal/db"
 	"studyplan/backend/internal/handler"
@@ -46,9 +47,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	redisCache, err := cache.NewRedisCache(cfg.RedisURL, cfg.RedisPassword)
+	if err != nil {
+		logger.Error("redis setup failed", "error", err)
+		os.Exit(1)
+	}
+
 	server := &http.Server{
 		Addr:    ":" + cfg.Port,
-		Handler: handler.New(store, objects, logger).Routes(),
+		Handler: handler.New(store, objects, redisCache, logger).Routes(),
 	}
 
 	go func() {

@@ -11,6 +11,8 @@ import (
 type Config struct {
 	Port               string
 	DatabaseURL        string
+	RedisURL           string
+	RedisPassword      string
 	OSSAccessKeyID     string
 	OSSAccessKeySecret string
 	OSSEndpoint        string
@@ -27,6 +29,8 @@ func Load() (Config, error) {
 	}
 
 	cfg.DatabaseURL = os.Getenv("DATABASE_URL")
+	cfg.RedisURL = getEnv("REDIS_URL", "redis://localhost:6379")
+	cfg.RedisPassword = os.Getenv("REDIS_PASSWORD")
 	cfg.OSSAccessKeyID = os.Getenv("ALIYUN_OSS_ACCESS_KEY_ID")
 	cfg.OSSAccessKeySecret = os.Getenv("ALIYUN_OSS_ACCESS_KEY_SECRET")
 	cfg.OSSEndpoint = os.Getenv("ALIYUN_OSS_ENDPOINT")

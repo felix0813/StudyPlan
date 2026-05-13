@@ -35,7 +35,8 @@ python3 -m http.server 5173
 - 查询指定标题下的所有文件元数据。
 - 使用 PostgreSQL 存储计划、标题和文件元数据。
 - 使用阿里云 OSS 存储 Markdown 文件内容。
-- 提供 `/study/health` 健康检查，同时检查 PostgreSQL 与 OSS 可用性。
+- 使用 Redis 缓存网络请求结果，减少数据库压力。
+- 提供 `/study/health` 健康检查，同时检查 PostgreSQL、OSS 与 Redis 可用性。
 - 在启动、迁移、请求处理、关键数据变更和错误路径记录结构化 JSON 日志。
 
 ## 必需环境变量
@@ -43,6 +44,8 @@ python3 -m http.server 5173
 | 变量 | 必需 | 默认值 | 说明 |
 | --- | --- | --- | --- |
 | `DATABASE_URL` | 是 | 无 | PostgreSQL 连接串，例如 `postgres://user:password@localhost:5432/studyplan?sslmode=disable`。 |
+| `REDIS_URL` | 否 | `redis://localhost:6379` | Redis 连接地址。 |
+| `REDIS_PASSWORD` | 否 | 无 | Redis 密码（如果 URL 中未包含）。 |
 | `ALIYUN_OSS_ACCESS_KEY_ID` | 是 | 无 | 阿里云 OSS AccessKey ID。 |
 | `ALIYUN_OSS_ACCESS_KEY_SECRET` | 是 | 无 | 阿里云 OSS AccessKey Secret。 |
 | `ALIYUN_OSS_ENDPOINT` | 是 | 无 | OSS Endpoint，例如 `oss-cn-hangzhou.aliyuncs.com`。 |
@@ -86,11 +89,12 @@ GET /study/health
 {
   "status": "ok",
   "postgres": "ok",
-  "oss": "ok"
+  "oss": "ok",
+  "redis": "ok"
 }
 ```
 
-如果 PostgreSQL 或 OSS 不可用，会返回 `503`，并在对应字段中放入错误信息。
+如果 PostgreSQL、OSS 或 Redis 不可用，会返回 `503`，并在对应字段中放入错误信息。
 
 ### 创建/覆盖学习计划
 
