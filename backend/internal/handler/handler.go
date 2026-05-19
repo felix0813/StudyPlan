@@ -77,6 +77,8 @@ func (h *Handler) route(w http.ResponseWriter, r *http.Request) {
 	}
 
 	switch {
+	case r.Method == http.MethodGet && path == "/health":
+		h.health(w, r)
 	case r.Method == http.MethodGet && path == "/study/health":
 		h.health(w, r)
 	case r.Method == http.MethodPost && path == "/study/plan":
@@ -106,6 +108,7 @@ func (h *Handler) route(w http.ResponseWriter, r *http.Request) {
 	case r.Method == http.MethodGet && strings.HasPrefix(path, "/study/files/") && strings.HasSuffix(path, "/content"):
 		h.getFileContent(w, r, path)
 	default:
+		h.logger.Warn("route not found", "method", r.Method, "path", path)
 		writeError(w, http.StatusNotFound, "route not found")
 	}
 }
@@ -160,7 +163,7 @@ func (h *Handler) replacePlan(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := h.store.ReplacePlan(r.Context(), items); err != nil {
 		h.logger.Error("replace plan failed", "error", err)
-		writeError(w, http.StatusInternalServerError, "replace plan failed")
+		writeErrorWithDetails(w, http.StatusInternalServerError, "replace plan failed", err)
 		return
 	}
 
@@ -182,7 +185,7 @@ func (h *Handler) getPlan(w http.ResponseWriter, r *http.Request) {
 	items, err := h.store.ListPlan(r.Context())
 	if err != nil {
 		h.logger.Error("list plan failed", "error", err)
-		writeError(w, http.StatusInternalServerError, "list plan failed")
+		writeErrorWithDetails(w, http.StatusInternalServerError, "list plan failed", err)
 		return
 	}
 
@@ -203,7 +206,7 @@ func (h *Handler) getPlanStatus(w http.ResponseWriter, r *http.Request) {
 	summary, err := h.store.PlanSummary(r.Context())
 	if err != nil {
 		h.logger.Error("get plan status failed", "error", err)
-		writeError(w, http.StatusInternalServerError, "get plan status failed")
+		writeErrorWithDetails(w, http.StatusInternalServerError, "get plan status failed", err)
 		return
 	}
 
@@ -228,7 +231,7 @@ func (h *Handler) getNextPlanItem(w http.ResponseWriter, r *http.Request) {
 	item, err := h.store.NextPlanItem(r.Context())
 	if err != nil {
 		h.logger.Error("get next plan item failed", "error", err)
-		writeError(w, http.StatusInternalServerError, "get next plan item failed")
+		writeErrorWithDetails(w, http.StatusInternalServerError, "get next plan item failed", err)
 		return
 	}
 
@@ -265,7 +268,7 @@ func (h *Handler) updatePlanItemStatus(w http.ResponseWriter, r *http.Request, p
 	}
 	if err != nil {
 		h.logger.Error("update plan item status failed", "id", id, "error", err)
-		writeError(w, http.StatusInternalServerError, "update plan item status failed")
+		writeErrorWithDetails(w, http.StatusInternalServerError, "update plan item status failed", err)
 		return
 	}
 
@@ -281,6 +284,7 @@ func (h *Handler) createTitle(w http.ResponseWriter, r *http.Request) {
 		Name string `json:"name"`
 	}
 	if err := readJSON(r, &body); err != nil {
+		h.logger.Warn("invalid create title payload", "error", err)
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -292,7 +296,7 @@ func (h *Handler) createTitle(w http.ResponseWriter, r *http.Request) {
 	title, err := h.store.CreateTitle(r.Context(), name)
 	if err != nil {
 		h.logger.Error("create title failed", "name", name, "error", err)
-		writeError(w, http.StatusInternalServerError, "create title failed")
+		writeErrorWithDetails(w, http.StatusInternalServerError, "create title failed", err)
 		return
 	}
 
@@ -314,7 +318,7 @@ func (h *Handler) listTitles(w http.ResponseWriter, r *http.Request) {
 	titles, err := h.store.ListTitles(r.Context())
 	if err != nil {
 		h.logger.Error("list titles failed", "error", err)
-		writeError(w, http.StatusInternalServerError, "list titles failed")
+		writeErrorWithDetails(w, http.StatusInternalServerError, "list titles failed", err)
 		return
 	}
 
@@ -339,7 +343,7 @@ func (h *Handler) getTitle(w http.ResponseWriter, r *http.Request, id string) {
 	}
 	if err != nil {
 		h.logger.Error("get title failed", "id", id, "error", err)
-		writeError(w, http.StatusInternalServerError, "get title failed")
+		writeErrorWithDetails(w, http.StatusInternalServerError, "get title failed", err)
 		return
 	}
 
@@ -354,6 +358,7 @@ func (h *Handler) updateTitle(w http.ResponseWriter, r *http.Request, id string)
 		Name string `json:"name"`
 	}
 	if err := readJSON(r, &body); err != nil {
+		h.logger.Warn("invalid update title payload", "id", id, "error", err)
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -369,7 +374,7 @@ func (h *Handler) updateTitle(w http.ResponseWriter, r *http.Request, id string)
 	}
 	if err != nil {
 		h.logger.Error("update title failed", "id", id, "error", err)
-		writeError(w, http.StatusInternalServerError, "update title failed")
+		writeErrorWithDetails(w, http.StatusInternalServerError, "update title failed", err)
 		return
 	}
 
@@ -386,7 +391,7 @@ func (h *Handler) deleteTitle(w http.ResponseWriter, r *http.Request, id string)
 		return
 	} else if err != nil {
 		h.logger.Error("delete title failed", "id", id, "error", err)
-		writeError(w, http.StatusInternalServerError, "delete title failed")
+		writeErrorWithDetails(w, http.StatusInternalServerError, "delete title failed", err)
 		return
 	}
 
@@ -402,7 +407,7 @@ func (h *Handler) uploadFiles(w http.ResponseWriter, r *http.Request, path strin
 	exists, err := h.store.TitleExists(r.Context(), titleID)
 	if err != nil {
 		h.logger.Error("check title before upload failed", "title_id", titleID, "error", err)
-		writeError(w, http.StatusInternalServerError, "check title failed")
+		writeErrorWithDetails(w, http.StatusInternalServerError, "check title failed", err)
 		return
 	}
 	if !exists {
@@ -430,7 +435,7 @@ func (h *Handler) uploadFiles(w http.ResponseWriter, r *http.Request, path strin
 				writeError(w, http.StatusBadRequest, err.Error())
 				return
 			}
-			writeError(w, http.StatusInternalServerError, "upload file failed")
+			writeErrorWithDetails(w, http.StatusInternalServerError, "upload file failed", err)
 			return
 		}
 		saved = append(saved, file)
@@ -477,14 +482,14 @@ func (h *Handler) getFileContent(w http.ResponseWriter, r *http.Request, path st
 	}
 	if err != nil {
 		h.logger.Error("get file failed before content fetch", "file_id", fileID, "error", err)
-		writeError(w, http.StatusInternalServerError, "get file failed")
+		writeErrorWithDetails(w, http.StatusInternalServerError, "get file failed", err)
 		return
 	}
 
 	rc, err := h.objects.GetMarkdown(r.Context(), file.OSSKey)
 	if err != nil {
 		h.logger.Error("fetch markdown content failed", "file_id", fileID, "oss_key", file.OSSKey, "error", err)
-		writeError(w, http.StatusInternalServerError, "fetch content failed")
+		writeErrorWithDetails(w, http.StatusInternalServerError, "fetch content failed", err)
 		return
 	}
 	defer rc.Close()
@@ -508,7 +513,7 @@ func (h *Handler) listFiles(w http.ResponseWriter, r *http.Request, path string)
 	exists, err := h.store.TitleExists(r.Context(), titleID)
 	if err != nil {
 		h.logger.Error("check title before list files failed", "title_id", titleID, "error", err)
-		writeError(w, http.StatusInternalServerError, "check title failed")
+		writeErrorWithDetails(w, http.StatusInternalServerError, "check title failed", err)
 		return
 	}
 	if !exists {
@@ -518,7 +523,7 @@ func (h *Handler) listFiles(w http.ResponseWriter, r *http.Request, path string)
 	files, err = h.store.ListFiles(r.Context(), titleID)
 	if err != nil {
 		h.logger.Error("list files failed", "title_id", titleID, "error", err)
-		writeError(w, http.StatusInternalServerError, "list files failed")
+		writeErrorWithDetails(w, http.StatusInternalServerError, "list files failed", err)
 		return
 	}
 
@@ -567,6 +572,10 @@ func writeJSON(w http.ResponseWriter, status int, body any) {
 
 func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]string{"error": message})
+}
+
+func writeErrorWithDetails(w http.ResponseWriter, status int, message string, err error) {
+	writeJSON(w, status, map[string]string{"error": message, "details": err.Error()})
 }
 
 func newID(prefix string) string {
