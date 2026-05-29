@@ -481,6 +481,16 @@ func (h *Handler) getFileContent(w http.ResponseWriter, r *http.Request, path st
 		return
 	}
 
+	cacheKey := fmt.Sprintf("study:files:%s:content", fileID)
+	var content string
+	if err := h.cache.Get(r.Context(), cacheKey, &content); err == nil {
+		w.Header().Set("Content-Type", file.ContentType)
+		if _, err := w.Write([]byte(content)); err != nil {
+			h.logger.Error("write cached markdown content failed", "file_id", fileID, "error", err)
+		}
+		return
+	}
+
 	rc, err := h.objects.GetMarkdown(r.Context(), file.OSSKey)
 	if err != nil {
 		h.logger.Error("fetch markdown content failed", "file_id", fileID, "oss_key", file.OSSKey, "error", err)
@@ -489,9 +499,21 @@ func (h *Handler) getFileContent(w http.ResponseWriter, r *http.Request, path st
 	}
 	defer rc.Close()
 
+	data, err := io.ReadAll(rc)
+	if err != nil {
+		h.logger.Error("read markdown content failed", "file_id", fileID, "error", err)
+		writeError(w, http.StatusInternalServerError, "read content failed")
+		return
+	}
+
+	content = string(data)
+	if err := h.cache.Set(r.Context(), cacheKey, content, 0); err != nil {
+		h.logger.Warn("cache markdown content failed", "file_id", fileID, "error", err)
+	}
+
 	w.Header().Set("Content-Type", file.ContentType)
-	if _, err := io.Copy(w, rc); err != nil {
-		h.logger.Error("stream markdown content failed", "file_id", fileID, "error", err)
+	if _, err := w.Write(data); err != nil {
+		h.logger.Error("write markdown content failed", "file_id", fileID, "error", err)
 	}
 }
 
