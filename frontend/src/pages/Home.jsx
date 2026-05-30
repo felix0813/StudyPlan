@@ -13,7 +13,7 @@ export default function Home({ apiBase, setApiBase, health, lastSync, context })
           <div className="hero-copy">
             <p className="eyebrow">Overview</p>
             <h1>学习进度，一眼看清。</h1>
-            <p>总览页只展示服务状态、计划统计和下一步行动；计划与笔记已拆分到独立页面，避免内容堆叠。</p>
+            <p>总览页只展示服务状态、计划统计和下一步行动。</p>
             <div className="hero-actions">
               <button className="button primary" type="button" onClick={() => context.refreshAll()} disabled={context.busy.refreshAll}>{context.busy.refreshAll ? '刷新中...' : '刷新总览'}</button>
               <Link className="button subtle" to="/plan">管理计划</Link>
