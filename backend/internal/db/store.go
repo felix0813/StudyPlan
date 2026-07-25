@@ -262,6 +262,23 @@ func (s *Store) GetFile(ctx context.Context, id string) (model.StudyFile, error)
 	return file, nil
 }
 
+func (s *Store) GetFileByTitleAndFilename(ctx context.Context, titleID, filename string) (model.StudyFile, error) {
+	var file model.StudyFile
+	err := s.pool.QueryRow(ctx, `
+		SELECT id, title_id, filename, oss_key, size_bytes, content_type, created_at
+		FROM study_files
+		WHERE title_id = $1 AND filename = $2
+		ORDER BY created_at DESC
+		LIMIT 1`, titleID, filename).Scan(&file.ID, &file.TitleID, &file.Filename, &file.OSSKey, &file.Size, &file.ContentType, &file.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return model.StudyFile{}, model.ErrNotFound
+	}
+	if err != nil {
+		return model.StudyFile{}, fmt.Errorf("get study file by title and filename: %w", err)
+	}
+	return file, nil
+}
+
 func (s *Store) AddFile(ctx context.Context, file model.StudyFile) (model.StudyFile, error) {
 	if file.ID == "" {
 		file.ID = newID("file")
@@ -279,6 +296,27 @@ func (s *Store) AddFile(ctx context.Context, file model.StudyFile) (model.StudyF
 		return model.StudyFile{}, fmt.Errorf("touch title updated_at: %w", err)
 	}
 	s.logger.Info("study file metadata saved", "id", file.ID, "title_id", file.TitleID, "oss_key", file.OSSKey)
+	return file, nil
+}
+
+func (s *Store) UpdateFile(ctx context.Context, file model.StudyFile) (model.StudyFile, error) {
+	err := s.pool.QueryRow(ctx, `
+		UPDATE study_files
+		SET filename = $2, oss_key = $3, size_bytes = $4, content_type = $5
+		WHERE id = $1
+		RETURNING id, title_id, filename, oss_key, size_bytes, content_type, created_at`,
+		file.ID, file.Filename, file.OSSKey, file.Size, file.ContentType,
+	).Scan(&file.ID, &file.TitleID, &file.Filename, &file.OSSKey, &file.Size, &file.ContentType, &file.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return model.StudyFile{}, model.ErrNotFound
+	}
+	if err != nil {
+		return model.StudyFile{}, fmt.Errorf("update study file: %w", err)
+	}
+	if _, err := s.pool.Exec(ctx, `UPDATE titles SET updated_at = now() WHERE id = $1`, file.TitleID); err != nil {
+		return model.StudyFile{}, fmt.Errorf("touch title updated_at: %w", err)
+	}
+	s.logger.Info("study file metadata updated", "id", file.ID, "title_id", file.TitleID, "oss_key", file.OSSKey)
 	return file, nil
 }
 

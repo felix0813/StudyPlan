@@ -96,16 +96,30 @@ export default function NoteDetail({ apiBase, setApiBase, context }) {
       context.showToast('请选择至少一个笔记文件', 'error')
       return
     }
+    const selectedFiles = Array.from(input.files)
+    const existingNames = new Set(files.map((file) => file.filename))
+    const duplicateNames = selectedFiles
+      .map((file) => file.name)
+      .filter((name, index, names) => existingNames.has(name) && names.indexOf(name) === index)
+    const overwrite = duplicateNames.length > 0
+    if (overwrite && !confirm(`以下文件已存在，是否覆盖？\n${duplicateNames.join('\n')}`)) {
+      return
+    }
+
     const data = new FormData()
-    Array.from(input.files).forEach((file) => data.append('files', file))
+    selectedFiles.forEach((file) => data.append('files', file))
     context.setBusy((value) => ({ ...value, [`upload-${titleId}`]: true }))
     try {
       await context.request(
-        `/study/titles/${encodeURIComponent(titleId)}/files`,
+        `/study/titles/${encodeURIComponent(titleId)}/files${overwrite ? '?overwrite=true' : ''}`,
         { method: 'POST', body: data },
       )
       input.value = ''
       await loadData()
+      if (selectedFile && duplicateNames.includes(selectedFile.filename)) {
+        setSelectedFile(null)
+        setContent('')
+      }
       context.showToast('笔记已上传')
     } catch (error) {
       context.showToast(error.message, 'error')

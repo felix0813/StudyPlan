@@ -36,7 +36,9 @@ type Store interface {
 	DeleteTitle(context.Context, string) error
 	TitleExists(context.Context, string) (bool, error)
 	GetFile(context.Context, string) (model.StudyFile, error)
+	GetFileByTitleAndFilename(context.Context, string, string) (model.StudyFile, error)
 	AddFile(context.Context, model.StudyFile) (model.StudyFile, error)
+	UpdateFile(context.Context, model.StudyFile) (model.StudyFile, error)
 	ListFiles(context.Context, string) ([]model.StudyFile, error)
 }
 
@@ -46,7 +48,10 @@ type ObjectStore interface {
 	GetMarkdown(context.Context, string) (io.ReadCloser, error)
 }
 
-var errInvalidMarkdownFile = errors.New("only markdown files are allowed")
+var (
+	errInvalidMarkdownFile   = errors.New("only markdown files are allowed")
+	errDuplicateMarkdownFile = errors.New("markdown file already exists")
+)
 
 type titleExport struct {
 	title model.Title
@@ -557,52 +562,100 @@ func (h *Handler) uploadFiles(w http.ResponseWriter, r *http.Request, path strin
 		writeError(w, http.StatusBadRequest, "multipart field files is required")
 		return
 	}
+	overwrite := strings.EqualFold(r.URL.Query().Get("overwrite"), "true")
+	if !overwrite {
+		seen := make(map[string]struct{}, len(files))
+		for _, header := range files {
+			if _, ok := seen[header.Filename]; ok {
+				writeError(w, http.StatusConflict, fmt.Sprintf("%s: %s", errDuplicateMarkdownFile, header.Filename))
+				return
+			}
+			seen[header.Filename] = struct{}{}
+			if _, err := h.store.GetFileByTitleAndFilename(r.Context(), titleID, header.Filename); err == nil {
+				writeError(w, http.StatusConflict, fmt.Sprintf("%s: %s", errDuplicateMarkdownFile, header.Filename))
+				return
+			} else if !errors.Is(err, model.ErrNotFound) {
+				h.logger.Error("check duplicate markdown before upload failed", "title_id", titleID, "filename", header.Filename, "error", err)
+				writeError(w, http.StatusInternalServerError, "check duplicate file failed")
+				return
+			}
+		}
+	}
 
 	saved := make([]model.StudyFile, 0, len(files))
+	invalidatedContentKeys := make([]string, 0, len(files))
 	for _, header := range files {
-		file, err := h.saveUploadedFile(r.Context(), titleID, header)
+		file, overwritten, err := h.saveUploadedFile(r.Context(), titleID, header, overwrite)
 		if err != nil {
 			h.logger.Error("save uploaded markdown failed", "title_id", titleID, "filename", header.Filename, "error", err)
 			if errors.Is(err, errInvalidMarkdownFile) {
 				writeError(w, http.StatusBadRequest, err.Error())
 				return
 			}
+			if errors.Is(err, errDuplicateMarkdownFile) {
+				writeError(w, http.StatusConflict, err.Error())
+				return
+			}
 			writeError(w, http.StatusInternalServerError, "upload file failed")
 			return
+		}
+		if overwritten {
+			invalidatedContentKeys = append(invalidatedContentKeys, fmt.Sprintf("study:files:%s:content", file.ID))
 		}
 		saved = append(saved, file)
 	}
 
-	if err := h.cache.Delete(r.Context(), fmt.Sprintf("study:titles:%s:files", titleID)); err != nil {
+	cacheKeys := append([]string{fmt.Sprintf("study:titles:%s:files", titleID), "study:titles"}, invalidatedContentKeys...)
+	if err := h.cache.Delete(r.Context(), cacheKeys...); err != nil {
 		h.logger.Warn("invalidate files cache after upload failed", "title_id", titleID, "error", err)
 	}
 
 	writeJSON(w, http.StatusCreated, saved)
 }
 
-func (h *Handler) saveUploadedFile(ctx context.Context, titleID string, header *multipart.FileHeader) (model.StudyFile, error) {
+func (h *Handler) saveUploadedFile(ctx context.Context, titleID string, header *multipart.FileHeader, overwrite bool) (model.StudyFile, bool, error) {
 	if !strings.EqualFold(filepath.Ext(header.Filename), ".md") && !strings.EqualFold(filepath.Ext(header.Filename), ".markdown") {
-		return model.StudyFile{}, fmt.Errorf("%w: %s", errInvalidMarkdownFile, header.Filename)
+		return model.StudyFile{}, false, fmt.Errorf("%w: %s", errInvalidMarkdownFile, header.Filename)
 	}
+
+	existing, err := h.store.GetFileByTitleAndFilename(ctx, titleID, header.Filename)
+	if err != nil && !errors.Is(err, model.ErrNotFound) {
+		return model.StudyFile{}, false, err
+	}
+	overwriting := !errors.Is(err, model.ErrNotFound)
+	if overwriting && !overwrite {
+		return model.StudyFile{}, false, fmt.Errorf("%w: %s", errDuplicateMarkdownFile, header.Filename)
+	}
+
 	src, err := header.Open()
 	if err != nil {
-		return model.StudyFile{}, fmt.Errorf("open multipart file: %w", err)
+		return model.StudyFile{}, false, fmt.Errorf("open multipart file: %w", err)
 	}
 	defer src.Close()
 
 	fileID := newID("file")
+	if overwriting {
+		fileID = existing.ID
+	}
 	ossKey, err := h.objects.PutMarkdown(ctx, titleID, fileID, header.Filename, src)
 	if err != nil {
-		return model.StudyFile{}, err
+		return model.StudyFile{}, false, err
 	}
-	return h.store.AddFile(ctx, model.StudyFile{
+
+	file := model.StudyFile{
 		ID:          fileID,
 		TitleID:     titleID,
 		Filename:    header.Filename,
 		OSSKey:      ossKey,
 		Size:        header.Size,
 		ContentType: "text/markdown; charset=utf-8",
-	})
+	}
+	if overwriting {
+		saved, err := h.store.UpdateFile(ctx, file)
+		return saved, true, err
+	}
+	saved, err := h.store.AddFile(ctx, file)
+	return saved, false, err
 }
 
 func (h *Handler) getFileContent(w http.ResponseWriter, r *http.Request, path string) {
