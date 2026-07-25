@@ -48,6 +48,11 @@ type ObjectStore interface {
 
 var errInvalidMarkdownFile = errors.New("only markdown files are allowed")
 
+type titleExport struct {
+	title model.Title
+	files []model.StudyFile
+}
+
 type Cache interface {
 	Get(ctx context.Context, key string, target any) error
 	Set(ctx context.Context, key string, value any, expiration time.Duration) error
@@ -97,6 +102,8 @@ func (h *Handler) route(w http.ResponseWriter, r *http.Request) {
 		h.createTitle(w, r)
 	case r.Method == http.MethodGet && path == "/study/titles":
 		h.listTitles(w, r)
+	case r.Method == http.MethodGet && path == "/study/export":
+		h.exportAllTitles(w, r)
 	case r.Method == http.MethodGet && strings.HasPrefix(path, "/study/titles/") && !strings.Contains(strings.TrimPrefix(path, "/study/titles/"), "/"):
 		h.getTitle(w, r, strings.TrimPrefix(path, "/study/titles/"))
 	case r.Method == http.MethodPatch && strings.HasPrefix(path, "/study/titles/") && !strings.Contains(strings.TrimPrefix(path, "/study/titles/"), "/"):
@@ -428,40 +435,9 @@ func (h *Handler) exportTitle(w http.ResponseWriter, r *http.Request, requestPat
 	}
 
 	root := safeArchiveName(title.Name)
-	var buf bytes.Buffer
-	zw := zip.NewWriter(&buf)
-	usedNames := make(map[string]int)
-	for _, file := range files {
-		rc, err := h.objects.GetMarkdown(r.Context(), file.OSSKey)
-		if err != nil {
-			h.logger.Error("fetch markdown for export failed", "file_id", file.ID, "oss_key", file.OSSKey, "error", err)
-			_ = zw.Close()
-			writeError(w, http.StatusInternalServerError, "fetch content failed")
-			return
-		}
-
-		entryName := path.Join(root, uniqueArchiveFilename(file.Filename, usedNames))
-		entry, err := zw.Create(entryName)
-		if err != nil {
-			_ = rc.Close()
-			h.logger.Error("create zip entry failed", "file_id", file.ID, "entry", entryName, "error", err)
-			_ = zw.Close()
-			writeError(w, http.StatusInternalServerError, "create export failed")
-			return
-		}
-		if _, err := io.Copy(entry, rc); err != nil {
-			_ = rc.Close()
-			h.logger.Error("write zip entry failed", "file_id", file.ID, "entry", entryName, "error", err)
-			_ = zw.Close()
-			writeError(w, http.StatusInternalServerError, "write export failed")
-			return
-		}
-		if err := rc.Close(); err != nil {
-			h.logger.Warn("close markdown reader failed", "file_id", file.ID, "error", err)
-		}
-	}
-	if err := zw.Close(); err != nil {
-		h.logger.Error("close zip writer failed", "title_id", titleID, "error", err)
+	buf, err := h.buildExportZip(r.Context(), []titleExport{{title: title, files: files}})
+	if err != nil {
+		h.logger.Error("build title export failed", "title_id", titleID, "error", err)
 		writeError(w, http.StatusInternalServerError, "create export failed")
 		return
 	}
@@ -469,10 +445,93 @@ func (h *Handler) exportTitle(w http.ResponseWriter, r *http.Request, requestPat
 	downloadName := root + ".zip"
 	w.Header().Set("Content-Type", "application/zip")
 	w.Header().Set("Content-Disposition", contentDisposition(downloadName))
-	w.Header().Set("Content-Length", fmt.Sprintf("%d", buf.Len()))
-	if _, err := io.Copy(w, &buf); err != nil {
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(buf)))
+	if _, err := w.Write(buf); err != nil {
 		h.logger.Error("stream zip failed", "title_id", titleID, "error", err)
 	}
+}
+
+func (h *Handler) exportAllTitles(w http.ResponseWriter, r *http.Request) {
+	titles, err := h.store.ListTitles(r.Context())
+	if err != nil {
+		h.logger.Error("list titles before export all failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "list titles failed")
+		return
+	}
+
+	exports := make([]titleExport, 0, len(titles))
+	totalFiles := 0
+	for _, title := range titles {
+		files, err := h.store.ListFiles(r.Context(), title.ID)
+		if err != nil {
+			h.logger.Error("list files before export all failed", "title_id", title.ID, "error", err)
+			writeError(w, http.StatusInternalServerError, "list files failed")
+			return
+		}
+		if len(files) == 0 {
+			continue
+		}
+		totalFiles += len(files)
+		exports = append(exports, titleExport{title: title, files: files})
+	}
+	if totalFiles == 0 {
+		writeError(w, http.StatusNotFound, "no markdown files to export")
+		return
+	}
+
+	buf, err := h.buildExportZip(r.Context(), exports)
+	if err != nil {
+		h.logger.Error("build all titles export failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "create export failed")
+		return
+	}
+
+	downloadName := "study-notes.zip"
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", contentDisposition(downloadName))
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(buf)))
+	if _, err := w.Write(buf); err != nil {
+		h.logger.Error("stream all titles zip failed", "error", err)
+	}
+}
+
+func (h *Handler) buildExportZip(ctx context.Context, exports []titleExport) ([]byte, error) {
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	usedDirs := make(map[string]int)
+
+	for _, item := range exports {
+		root := uniqueArchiveName(safeArchiveName(item.title.Name), usedDirs)
+		usedFiles := make(map[string]int)
+		for _, file := range item.files {
+			rc, err := h.objects.GetMarkdown(ctx, file.OSSKey)
+			if err != nil {
+				_ = zw.Close()
+				return nil, fmt.Errorf("fetch markdown %s: %w", file.ID, err)
+			}
+
+			entryName := path.Join(root, uniqueArchiveFilename(file.Filename, usedFiles))
+			entry, err := zw.Create(entryName)
+			if err != nil {
+				_ = rc.Close()
+				_ = zw.Close()
+				return nil, fmt.Errorf("create zip entry %s: %w", entryName, err)
+			}
+			if _, err := io.Copy(entry, rc); err != nil {
+				_ = rc.Close()
+				_ = zw.Close()
+				return nil, fmt.Errorf("write zip entry %s: %w", entryName, err)
+			}
+			if err := rc.Close(); err != nil {
+				h.logger.Warn("close markdown reader failed", "file_id", file.ID, "error", err)
+			}
+		}
+	}
+
+	if err := zw.Close(); err != nil {
+		return nil, fmt.Errorf("close zip writer: %w", err)
+	}
+	return buf.Bytes(), nil
 }
 
 func (h *Handler) uploadFiles(w http.ResponseWriter, r *http.Request, path string) {
@@ -697,6 +756,10 @@ func uniqueArchiveFilename(filename string, used map[string]int) string {
 	if filepath.Ext(name) == "" {
 		name += ".md"
 	}
+	return uniqueArchiveName(name, used)
+}
+
+func uniqueArchiveName(name string, used map[string]int) string {
 	count := used[name]
 	used[name] = count + 1
 	if count == 0 {

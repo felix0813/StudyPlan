@@ -137,6 +137,38 @@ export default function Notes({ apiBase, setApiBase, context }) {
     }
   };
 
+  const exportAllZip = async () => {
+    context.setBusy((value) => ({ ...value, exportAll: true }));
+    try {
+      const response = await fetch(`${apiBase}/study/export`);
+      if (!response.ok) {
+        let message = '导出失败';
+        try {
+          const data = await response.json();
+          message = data?.error || message;
+        } catch (error) {
+          message = response.statusText || message;
+        }
+        throw new Error(message);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'study-notes.zip';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      context.showToast('导出完成');
+    } catch (error) {
+      context.showToast(error.message, 'error');
+    } finally {
+      context.setBusy((value) => ({ ...value, exportAll: false }));
+    }
+  };
+
   return (
     <>
       <PageHero apiBase={apiBase} setApiBase={setApiBase} title="学习笔记" eyebrow="Notes" description="主题、文件上传与笔记列表单独管理，回顾时更清楚。" showToast={context.showToast} />
@@ -150,6 +182,14 @@ export default function Notes({ apiBase, setApiBase, context }) {
             </div>
             <button className="button ghost" type="button" onClick={() => context.loadTitles().catch((error) => context.showToast(error.message, 'error'))}>刷新主题</button>
           </div>
+          <button
+            className="button subtle export-all-button"
+            type="button"
+            onClick={exportAllZip}
+            disabled={context.busy.exportAll || context.titles.length === 0}
+          >
+            {context.busy.exportAll ? '导出中...' : '导出全部 ZIP'}
+          </button>
           <form className="inline-form" onSubmit={createTitle}>
             <label className="sr-only" htmlFor="titleName">新主题名称</label>
             <input id="titleName" type="text" maxLength="120" placeholder="新建主题，例如：英语阅读" value={titleName} onChange={(event) => setTitleName(event.target.value)} />

@@ -4,6 +4,7 @@
 .page-title h1 { font-size: clamp(34px, 5vw, 58px); }
 
 .inline-form { padding: 18px; border: 1px solid var(--line); border-radius: 22px; background: rgba(255,255,255,.58); display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 12px; margin-bottom: 18px; }
+.export-all-button { margin: 0 0 14px; }
 
 .title-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; margin-top: 18px; }
 .title-card {
