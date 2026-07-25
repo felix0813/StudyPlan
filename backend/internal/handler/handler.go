@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -11,6 +13,8 @@ import (
 	"log/slog"
 	"mime/multipart"
 	"net/http"
+	"net/url"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -91,6 +95,8 @@ func (h *Handler) route(w http.ResponseWriter, r *http.Request) {
 		h.updateTitle(w, r, strings.TrimPrefix(path, "/study/titles/"))
 	case r.Method == http.MethodDelete && strings.HasPrefix(path, "/study/titles/") && !strings.Contains(strings.TrimPrefix(path, "/study/titles/"), "/"):
 		h.deleteTitle(w, r, strings.TrimPrefix(path, "/study/titles/"))
+	case r.Method == http.MethodGet && strings.HasPrefix(path, "/study/titles/") && strings.HasSuffix(path, "/export"):
+		h.exportTitle(w, r, path)
 	case r.Method == http.MethodPost && strings.HasPrefix(path, "/study/titles/") && strings.HasSuffix(path, "/files"):
 		h.uploadFiles(w, r, path)
 	case r.Method == http.MethodGet && strings.HasPrefix(path, "/study/titles/") && strings.HasSuffix(path, "/files"):
@@ -297,6 +303,78 @@ func (h *Handler) deleteTitle(w http.ResponseWriter, r *http.Request, id string)
 	writeJSON(w, http.StatusOK, map[string]string{"message": "title deleted"})
 }
 
+func (h *Handler) exportTitle(w http.ResponseWriter, r *http.Request, requestPath string) {
+	titleID := strings.TrimSuffix(strings.TrimPrefix(requestPath, "/study/titles/"), "/export")
+	title, err := h.store.GetTitle(r.Context(), titleID)
+	if errors.Is(err, model.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "title not found")
+		return
+	}
+	if err != nil {
+		h.logger.Error("get title before export failed", "title_id", titleID, "error", err)
+		writeError(w, http.StatusInternalServerError, "get title failed")
+		return
+	}
+
+	files, err := h.store.ListFiles(r.Context(), titleID)
+	if err != nil {
+		h.logger.Error("list files before export failed", "title_id", titleID, "error", err)
+		writeError(w, http.StatusInternalServerError, "list files failed")
+		return
+	}
+	if len(files) == 0 {
+		writeError(w, http.StatusNotFound, "no markdown files to export")
+		return
+	}
+
+	root := safeArchiveName(title.Name)
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	usedNames := make(map[string]int)
+	for _, file := range files {
+		rc, err := h.objects.GetMarkdown(r.Context(), file.OSSKey)
+		if err != nil {
+			h.logger.Error("fetch markdown for export failed", "file_id", file.ID, "oss_key", file.OSSKey, "error", err)
+			_ = zw.Close()
+			writeError(w, http.StatusInternalServerError, "fetch content failed")
+			return
+		}
+
+		entryName := path.Join(root, uniqueArchiveFilename(file.Filename, usedNames))
+		entry, err := zw.Create(entryName)
+		if err != nil {
+			_ = rc.Close()
+			h.logger.Error("create zip entry failed", "file_id", file.ID, "entry", entryName, "error", err)
+			_ = zw.Close()
+			writeError(w, http.StatusInternalServerError, "create export failed")
+			return
+		}
+		if _, err := io.Copy(entry, rc); err != nil {
+			_ = rc.Close()
+			h.logger.Error("write zip entry failed", "file_id", file.ID, "entry", entryName, "error", err)
+			_ = zw.Close()
+			writeError(w, http.StatusInternalServerError, "write export failed")
+			return
+		}
+		if err := rc.Close(); err != nil {
+			h.logger.Warn("close markdown reader failed", "file_id", file.ID, "error", err)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		h.logger.Error("close zip writer failed", "title_id", titleID, "error", err)
+		writeError(w, http.StatusInternalServerError, "create export failed")
+		return
+	}
+
+	downloadName := root + ".zip"
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", contentDisposition(downloadName))
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", buf.Len()))
+	if _, err := io.Copy(w, &buf); err != nil {
+		h.logger.Error("stream zip failed", "title_id", titleID, "error", err)
+	}
+}
+
 func (h *Handler) uploadFiles(w http.ResponseWriter, r *http.Request, path string) {
 	titleID := strings.TrimSuffix(strings.TrimPrefix(path, "/study/titles/"), "/files")
 	exists, err := h.store.TitleExists(r.Context(), titleID)
@@ -450,6 +528,44 @@ func writeJSON(w http.ResponseWriter, status int, body any) {
 
 func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]string{"error": message})
+}
+
+func contentDisposition(filename string) string {
+	return fmt.Sprintf("attachment; filename=%q; filename*=UTF-8''%s", filename, url.PathEscape(filename))
+}
+
+func safeArchiveName(name string) string {
+	name = strings.TrimSpace(name)
+	name = strings.Map(func(r rune) rune {
+		switch r {
+		case '/', '\\', ':', '*', '?', '"', '<', '>', '|':
+			return '_'
+		}
+		if r < 32 {
+			return -1
+		}
+		return r
+	}, name)
+	name = strings.Trim(name, ". ")
+	if name == "" {
+		return "study-notes"
+	}
+	return name
+}
+
+func uniqueArchiveFilename(filename string, used map[string]int) string {
+	name := safeArchiveName(path.Base(strings.TrimSpace(filename)))
+	if filepath.Ext(name) == "" {
+		name += ".md"
+	}
+	count := used[name]
+	used[name] = count + 1
+	if count == 0 {
+		return name
+	}
+	ext := filepath.Ext(name)
+	base := strings.TrimSuffix(name, ext)
+	return fmt.Sprintf("%s (%d)%s", base, count+1, ext)
 }
 
 func newID(prefix string) string {

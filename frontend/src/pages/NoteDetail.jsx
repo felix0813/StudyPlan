@@ -131,6 +131,40 @@ export default function NoteDetail({ apiBase, setApiBase, context }) {
     }
   }
 
+  const exportZip = async () => {
+    context.setBusy((value) => ({ ...value, [`export-${titleId}`]: true }))
+    try {
+      const response = await fetch(
+        `${apiBase}/study/titles/${encodeURIComponent(titleId)}/export`,
+      )
+      if (!response.ok) {
+        let message = '导出失败'
+        try {
+          const data = await response.json()
+          message = data?.error || message
+        } catch (error) {
+          message = response.statusText || message
+        }
+        throw new Error(message)
+      }
+
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${title.name || 'study-notes'}.zip`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+      context.showToast('导出完成')
+    } catch (error) {
+      context.showToast(error.message, 'error')
+    } finally {
+      context.setBusy((value) => ({ ...value, [`export-${titleId}`]: false }))
+    }
+  }
+
   if (!title) return null
 
   return (
@@ -164,6 +198,14 @@ export default function NoteDetail({ apiBase, setApiBase, context }) {
                 disabled={context.busy[`upload-${titleId}`]}
               >
                 {context.busy[`upload-${titleId}`] ? '上传中...' : '上传笔记'}
+              </button>
+              <button
+                className="button ghost"
+                type="button"
+                onClick={exportZip}
+                disabled={context.busy[`export-${titleId}`] || files.length === 0}
+              >
+                {context.busy[`export-${titleId}`] ? '导出中...' : '导出 ZIP'}
               </button>
             </form>
           </section>
