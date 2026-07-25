@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -67,6 +67,7 @@ export default function NoteDetail({ apiBase, setApiBase, context }) {
   const [selectedFile, setSelectedFile] = useState(null)
   const [content, setContent] = useState('')
   const [loadingContent, setLoadingContent] = useState(false)
+  const contentPanelRef = useRef(null)
 
   const loadData = useCallback(async () => {
     try {
@@ -132,12 +133,16 @@ export default function NoteDetail({ apiBase, setApiBase, context }) {
     setSelectedFile(file)
     setLoadingContent(true)
     setContent('')
+    contentPanelRef.current?.scrollIntoView({ block: 'start' })
     try {
       const rawUrl = `${apiBase}/study/files/${encodeURIComponent(file.id)}/content`
       const response = await fetch(rawUrl)
       if (!response.ok) throw new Error('无法获取笔记内容')
       const md = await response.text()
       setContent(md)
+      requestAnimationFrame(() => {
+        contentPanelRef.current?.scrollIntoView({ block: 'start' })
+      })
     } catch (error) {
       context.showToast(error.message, 'error')
     } finally {
@@ -227,7 +232,7 @@ export default function NoteDetail({ apiBase, setApiBase, context }) {
 
         {/* 中间：笔记具体内容 (宽度与标题视觉对齐) */}
         <div className="detail-content">
-          <section className="panel content-panel">
+          <section className="panel content-panel" ref={contentPanelRef}>
             {selectedFile ? (
               <>
                 <div className="content-header">
