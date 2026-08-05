@@ -324,7 +324,7 @@ func (s *Store) UpdateFile(ctx context.Context, file model.StudyFile) (model.Stu
 }
 
 func (s *Store) ListFiles(ctx context.Context, titleID string) ([]model.StudyFile, error) {
-	rows, err := s.pool.Query(ctx, `SELECT id, title_id, filename, oss_key, size_bytes, content_type, updated_at, created_at FROM study_files WHERE title_id = $1 ORDER BY updated_at DESC`, titleID)
+	rows, err := s.pool.Query(ctx, `SELECT id, title_id, filename, oss_key, size_bytes, content_type, updated_at, created_at FROM study_files WHERE title_id = $1 ORDER BY filename ASC`, titleID)
 	if err != nil {
 		return nil, fmt.Errorf("query study files: %w", err)
 	}
