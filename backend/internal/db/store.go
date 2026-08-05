@@ -64,9 +64,12 @@ func (s *Store) Migrate(ctx context.Context) error {
 			oss_key TEXT NOT NULL UNIQUE,
 			size_bytes BIGINT NOT NULL,
 			content_type TEXT NOT NULL,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 			created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 		)`,
+		`ALTER TABLE study_files ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()`,
 		`CREATE INDEX IF NOT EXISTS study_files_title_id_created_at_idx ON study_files(title_id, created_at DESC)`,
+		`CREATE INDEX IF NOT EXISTS study_files_title_id_updated_at_idx ON study_files(title_id, updated_at DESC)`,
 	}
 	for _, statement := range statements {
 		if _, err := s.pool.Exec(ctx, statement); err != nil {
@@ -252,7 +255,7 @@ func (s *Store) TitleExists(ctx context.Context, id string) (bool, error) {
 
 func (s *Store) GetFile(ctx context.Context, id string) (model.StudyFile, error) {
 	var file model.StudyFile
-	err := s.pool.QueryRow(ctx, `SELECT id, title_id, filename, oss_key, size_bytes, content_type, created_at FROM study_files WHERE id = $1`, id).Scan(&file.ID, &file.TitleID, &file.Filename, &file.OSSKey, &file.Size, &file.ContentType, &file.CreatedAt)
+	err := s.pool.QueryRow(ctx, `SELECT id, title_id, filename, oss_key, size_bytes, content_type, updated_at, created_at FROM study_files WHERE id = $1`, id).Scan(&file.ID, &file.TitleID, &file.Filename, &file.OSSKey, &file.Size, &file.ContentType, &file.UpdatedAt, &file.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return model.StudyFile{}, model.ErrNotFound
 	}
@@ -265,11 +268,11 @@ func (s *Store) GetFile(ctx context.Context, id string) (model.StudyFile, error)
 func (s *Store) GetFileByTitleAndFilename(ctx context.Context, titleID, filename string) (model.StudyFile, error) {
 	var file model.StudyFile
 	err := s.pool.QueryRow(ctx, `
-		SELECT id, title_id, filename, oss_key, size_bytes, content_type, created_at
+		SELECT id, title_id, filename, oss_key, size_bytes, content_type, updated_at, created_at
 		FROM study_files
 		WHERE title_id = $1 AND filename = $2
-		ORDER BY created_at DESC
-		LIMIT 1`, titleID, filename).Scan(&file.ID, &file.TitleID, &file.Filename, &file.OSSKey, &file.Size, &file.ContentType, &file.CreatedAt)
+		ORDER BY updated_at DESC
+		LIMIT 1`, titleID, filename).Scan(&file.ID, &file.TitleID, &file.Filename, &file.OSSKey, &file.Size, &file.ContentType, &file.UpdatedAt, &file.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return model.StudyFile{}, model.ErrNotFound
 	}
@@ -286,9 +289,9 @@ func (s *Store) AddFile(ctx context.Context, file model.StudyFile) (model.StudyF
 	err := s.pool.QueryRow(ctx, `
 		INSERT INTO study_files (id, title_id, filename, oss_key, size_bytes, content_type)
 		VALUES ($1, $2, $3, $4, $5, $6)
-		RETURNING id, title_id, filename, oss_key, size_bytes, content_type, created_at`,
+		RETURNING id, title_id, filename, oss_key, size_bytes, content_type, updated_at, created_at`,
 		file.ID, file.TitleID, file.Filename, file.OSSKey, file.Size, file.ContentType,
-	).Scan(&file.ID, &file.TitleID, &file.Filename, &file.OSSKey, &file.Size, &file.ContentType, &file.CreatedAt)
+	).Scan(&file.ID, &file.TitleID, &file.Filename, &file.OSSKey, &file.Size, &file.ContentType, &file.UpdatedAt, &file.CreatedAt)
 	if err != nil {
 		return model.StudyFile{}, fmt.Errorf("insert study file: %w", err)
 	}
@@ -302,11 +305,11 @@ func (s *Store) AddFile(ctx context.Context, file model.StudyFile) (model.StudyF
 func (s *Store) UpdateFile(ctx context.Context, file model.StudyFile) (model.StudyFile, error) {
 	err := s.pool.QueryRow(ctx, `
 		UPDATE study_files
-		SET filename = $2, oss_key = $3, size_bytes = $4, content_type = $5
+		SET filename = $2, oss_key = $3, size_bytes = $4, content_type = $5, updated_at = now()
 		WHERE id = $1
-		RETURNING id, title_id, filename, oss_key, size_bytes, content_type, created_at`,
+		RETURNING id, title_id, filename, oss_key, size_bytes, content_type, updated_at, created_at`,
 		file.ID, file.Filename, file.OSSKey, file.Size, file.ContentType,
-	).Scan(&file.ID, &file.TitleID, &file.Filename, &file.OSSKey, &file.Size, &file.ContentType, &file.CreatedAt)
+	).Scan(&file.ID, &file.TitleID, &file.Filename, &file.OSSKey, &file.Size, &file.ContentType, &file.UpdatedAt, &file.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return model.StudyFile{}, model.ErrNotFound
 	}
@@ -321,7 +324,7 @@ func (s *Store) UpdateFile(ctx context.Context, file model.StudyFile) (model.Stu
 }
 
 func (s *Store) ListFiles(ctx context.Context, titleID string) ([]model.StudyFile, error) {
-	rows, err := s.pool.Query(ctx, `SELECT id, title_id, filename, oss_key, size_bytes, content_type, created_at FROM study_files WHERE title_id = $1 ORDER BY created_at DESC`, titleID)
+	rows, err := s.pool.Query(ctx, `SELECT id, title_id, filename, oss_key, size_bytes, content_type, updated_at, created_at FROM study_files WHERE title_id = $1 ORDER BY updated_at DESC`, titleID)
 	if err != nil {
 		return nil, fmt.Errorf("query study files: %w", err)
 	}
@@ -329,7 +332,7 @@ func (s *Store) ListFiles(ctx context.Context, titleID string) ([]model.StudyFil
 	files := make([]model.StudyFile, 0)
 	for rows.Next() {
 		var file model.StudyFile
-		if err := rows.Scan(&file.ID, &file.TitleID, &file.Filename, &file.OSSKey, &file.Size, &file.ContentType, &file.CreatedAt); err != nil {
+		if err := rows.Scan(&file.ID, &file.TitleID, &file.Filename, &file.OSSKey, &file.Size, &file.ContentType, &file.UpdatedAt, &file.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scan study file: %w", err)
 		}
 		files = append(files, file)

@@ -39,6 +39,7 @@ type StudyFile struct {
 	OSSKey      string    `json:"oss_key"`
 	Size        int64     `json:"size"`
 	ContentType string    `json:"content_type"`
+	UpdatedAt   time.Time `json:"updated_at"`
 	CreatedAt   time.Time `json:"created_at"`
 }
 

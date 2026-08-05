@@ -239,7 +239,7 @@ export default function NoteDetail({ apiBase, setApiBase, context }) {
                   <h2>{selectedFile.filename}</h2>
                   <p>
                     {formatBytes(selectedFile.size)} ·{' '}
-                    {formatDate(selectedFile.created_at)}
+                    {formatDate(selectedFile.updated_at || selectedFile.created_at)}
                   </p>
                 </div>
                 <div className="markdown-body">
@@ -274,7 +274,7 @@ export default function NoteDetail({ apiBase, setApiBase, context }) {
                     onClick={() => viewFile(file)}
                   >
                     <strong>{file.filename}</strong>
-                    <span>{formatDate(file.created_at)}</span>
+                    <span>{formatDate(file.updated_at || file.created_at)}</span>
                   </div>
                 ))
               ) : (
