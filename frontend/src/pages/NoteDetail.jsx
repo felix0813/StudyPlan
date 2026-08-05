@@ -23,32 +23,14 @@ function formatBytes(bytes) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
-function PageHero({
-  title,
-  eyebrow,
-  description,
-  apiBase,
-  setApiBase,
-  showToast,
-}) {
+function PageHero({ title, eyebrow, description, apiBase, setApiBase, showToast }) {
   return (
     <header className="hero page-hero detail-page-hero">
-      <div
-        className="page-title-container"
-        style={{ maxWidth: '100%', padding: '0 var(--layout-padding)' }}
-      >
-        <Topbar
-          apiBase={apiBase}
-          setApiBase={setApiBase}
-          showToast={showToast}
-        />
+      <div className="page-title-container" style={{ maxWidth: '100%', padding: '0 var(--layout-padding)' }}>
+        <Topbar apiBase={apiBase} setApiBase={setApiBase} showToast={showToast} />
         <div className="page-title">
-          {/* 返回按钮在标题左侧 */}
-          <button
-            className="button ghost back-button-inline"
-            onClick={() => window.history.back()}
-          >
-            ← 返回主题列表
+          <button className="button ghost back-button-inline" type="button" onClick={() => window.history.back()}>
+            返回主题列表
           </button>
           <p className="eyebrow">{eyebrow}</p>
           <h1>{title}</h1>
@@ -67,17 +49,14 @@ export default function NoteDetail({ apiBase, setApiBase, context }) {
   const [selectedFile, setSelectedFile] = useState(null)
   const [content, setContent] = useState('')
   const [loadingContent, setLoadingContent] = useState(false)
+  const [filesCollapsed, setFilesCollapsed] = useState(false)
   const contentPanelRef = useRef(null)
 
   const loadData = useCallback(async () => {
     try {
-      const titleData = await context.request(
-        `/study/titles/${encodeURIComponent(titleId)}`,
-      )
+      const titleData = await context.request(`/study/titles/${encodeURIComponent(titleId)}`)
       setTitle(titleData)
-      const filesData = await context.request(
-        `/study/titles/${encodeURIComponent(titleId)}/files`,
-      )
+      const filesData = await context.request(`/study/titles/${encodeURIComponent(titleId)}/files`)
       setFiles(Array.isArray(filesData) ? filesData : [])
     } catch (error) {
       context.showToast(error.message, 'error')
@@ -97,6 +76,7 @@ export default function NoteDetail({ apiBase, setApiBase, context }) {
       context.showToast('请选择至少一个笔记文件', 'error')
       return
     }
+
     const selectedFiles = Array.from(input.files)
     const existingNames = new Set(files.map((file) => file.filename))
     const duplicateNames = selectedFiles
@@ -121,7 +101,7 @@ export default function NoteDetail({ apiBase, setApiBase, context }) {
         setSelectedFile(null)
         setContent('')
       }
-      context.showToast('笔记已上传')
+      context.showToast(overwrite ? '笔记已覆盖' : '笔记已上传')
     } catch (error) {
       context.showToast(error.message, 'error')
     } finally {
@@ -135,8 +115,7 @@ export default function NoteDetail({ apiBase, setApiBase, context }) {
     setContent('')
     contentPanelRef.current?.scrollIntoView({ block: 'start' })
     try {
-      const rawUrl = `${apiBase}/study/files/${encodeURIComponent(file.id)}/content`
-      const response = await fetch(rawUrl)
+      const response = await fetch(`${apiBase}/study/files/${encodeURIComponent(file.id)}/content`)
       if (!response.ok) throw new Error('无法获取笔记内容')
       const md = await response.text()
       setContent(md)
@@ -153,9 +132,7 @@ export default function NoteDetail({ apiBase, setApiBase, context }) {
   const exportZip = async () => {
     context.setBusy((value) => ({ ...value, [`export-${titleId}`]: true }))
     try {
-      const response = await fetch(
-        `${apiBase}/study/titles/${encodeURIComponent(titleId)}/export`,
-      )
+      const response = await fetch(`${apiBase}/study/titles/${encodeURIComponent(titleId)}/export`)
       if (!response.ok) {
         let message = '导出失败'
         try {
@@ -197,9 +174,7 @@ export default function NoteDetail({ apiBase, setApiBase, context }) {
         showToast={context.showToast}
       />
 
-      {/* Main 区域使用 Grid 布局，左右侧边栏分别在两侧 */}
-      <main className="detail-main">
-        {/* 左侧：上传组件 */}
+      <main className={`detail-main ${filesCollapsed ? 'files-collapsed' : ''}`}>
         <aside className="detail-sidebar-left">
           <section className="panel upload-panel">
             <h3>上传笔记</h3>
@@ -211,11 +186,7 @@ export default function NoteDetail({ apiBase, setApiBase, context }) {
                 multiple
                 aria-label="选择笔记文件"
               />
-              <button
-                className="button primary"
-                type="submit"
-                disabled={context.busy[`upload-${titleId}`]}
-              >
+              <button className="button primary" type="submit" disabled={context.busy[`upload-${titleId}`]}>
                 {context.busy[`upload-${titleId}`] ? '上传中...' : '上传笔记'}
               </button>
               <button
@@ -230,7 +201,6 @@ export default function NoteDetail({ apiBase, setApiBase, context }) {
           </section>
         </aside>
 
-        {/* 中间：笔记具体内容 (宽度与标题视觉对齐) */}
         <div className="detail-content">
           <section className="panel content-panel" ref={contentPanelRef}>
             {selectedFile ? (
@@ -254,16 +224,25 @@ export default function NoteDetail({ apiBase, setApiBase, context }) {
               </>
             ) : (
               <EmptyState
-                message="请选择一个笔记"
+                message="请选择一篇笔记"
                 detail="从右侧列表中点击笔记即可查看详细内容。"
               />
             )}
           </section>
         </div>
 
-        {/* 右侧：笔记列表 (悬挂) */}
-        <aside className="detail-sidebar-right">
+        <aside className={`detail-sidebar-right ${filesCollapsed ? 'collapsed' : ''}`}>
           <section className="panel files-panel">
+            <button
+              className="button ghost files-toggle"
+              type="button"
+              onClick={() => setFilesCollapsed((value) => !value)}
+              aria-expanded={!filesCollapsed}
+              aria-label={filesCollapsed ? '展开笔记列表' : '折叠笔记列表'}
+              title={filesCollapsed ? '展开笔记列表' : '折叠笔记列表'}
+            >
+              {filesCollapsed ? '>' : '<'}
+            </button>
             <h3>笔记列表</h3>
             <div className="file-list-vertical">
               {files.length ? (
