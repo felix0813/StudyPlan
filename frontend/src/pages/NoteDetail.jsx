@@ -129,6 +129,26 @@ export default function NoteDetail({ apiBase, setApiBase, context }) {
     }
   }
 
+  const deleteFile = async (file, event) => {
+    event.stopPropagation()
+    if (!confirm(`确定删除“${file.filename}”？`)) return
+
+    context.setBusy((value) => ({ ...value, [`delete-${file.id}`]: true }))
+    try {
+      await context.request(`/study/files/${encodeURIComponent(file.id)}`, { method: 'DELETE' })
+      if (selectedFile?.id === file.id) {
+        setSelectedFile(null)
+        setContent('')
+      }
+      await loadData()
+      context.showToast('笔记已删除')
+    } catch (error) {
+      context.showToast(error.message, 'error')
+    } finally {
+      context.setBusy((value) => ({ ...value, [`delete-${file.id}`]: false }))
+    }
+  }
+
   const exportZip = async () => {
     context.setBusy((value) => ({ ...value, [`export-${titleId}`]: true }))
     try {
@@ -252,8 +272,18 @@ export default function NoteDetail({ apiBase, setApiBase, context }) {
                     key={file.id}
                     onClick={() => viewFile(file)}
                   >
-                    <strong>{file.filename}</strong>
-                    <span>{formatDate(file.updated_at || file.created_at)}</span>
+                    <div className="file-item-main">
+                      <strong>{file.filename}</strong>
+                      <span>{formatDate(file.updated_at || file.created_at)}</span>
+                    </div>
+                    <button
+                      className="button danger file-delete-button"
+                      type="button"
+                      onClick={(event) => deleteFile(file, event)}
+                      disabled={context.busy[`delete-${file.id}`]}
+                    >
+                      {context.busy[`delete-${file.id}`] ? '删除中' : '删除'}
+                    </button>
                   </div>
                 ))
               ) : (

@@ -39,6 +39,7 @@ type Store interface {
 	GetFileByTitleAndFilename(context.Context, string, string) (model.StudyFile, error)
 	AddFile(context.Context, model.StudyFile) (model.StudyFile, error)
 	UpdateFile(context.Context, model.StudyFile) (model.StudyFile, error)
+	DeleteFile(context.Context, string) error
 	ListFiles(context.Context, string) ([]model.StudyFile, error)
 }
 
@@ -123,6 +124,8 @@ func (h *Handler) route(w http.ResponseWriter, r *http.Request) {
 		h.listFiles(w, r, path)
 	case r.Method == http.MethodGet && strings.HasPrefix(path, "/study/files/") && strings.HasSuffix(path, "/content"):
 		h.getFileContent(w, r, path)
+	case r.Method == http.MethodDelete && strings.HasPrefix(path, "/study/files/") && !strings.Contains(strings.TrimPrefix(path, "/study/files/"), "/"):
+		h.deleteFile(w, r, strings.TrimPrefix(path, "/study/files/"))
 	default:
 		writeError(w, http.StatusNotFound, "route not found")
 	}
@@ -705,6 +708,40 @@ func (h *Handler) getFileContent(w http.ResponseWriter, r *http.Request, path st
 	if _, err := w.Write(data); err != nil {
 		h.logger.Error("write markdown content failed", "file_id", fileID, "error", err)
 	}
+}
+
+func (h *Handler) deleteFile(w http.ResponseWriter, r *http.Request, fileID string) {
+	file, err := h.store.GetFile(r.Context(), fileID)
+	if errors.Is(err, model.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "file not found")
+		return
+	}
+	if err != nil {
+		h.logger.Error("get file before delete failed", "file_id", fileID, "error", err)
+		writeError(w, http.StatusInternalServerError, "get file failed")
+		return
+	}
+
+	if err := h.store.DeleteFile(r.Context(), fileID); errors.Is(err, model.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "file not found")
+		return
+	} else if err != nil {
+		h.logger.Error("delete file failed", "file_id", fileID, "error", err)
+		writeError(w, http.StatusInternalServerError, "delete file failed")
+		return
+	}
+
+	if err := h.cache.Delete(
+		r.Context(),
+		fmt.Sprintf("study:titles:%s:files", file.TitleID),
+		fmt.Sprintf("study:files:%s:content", file.ID),
+		"study:titles",
+		fmt.Sprintf("study:titles:%s", file.TitleID),
+	); err != nil {
+		h.logger.Warn("invalidate cache after file delete failed", "file_id", fileID, "error", err)
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"message": "file deleted"})
 }
 
 func (h *Handler) listFiles(w http.ResponseWriter, r *http.Request, path string) {

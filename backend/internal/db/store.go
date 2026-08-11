@@ -323,6 +323,26 @@ func (s *Store) UpdateFile(ctx context.Context, file model.StudyFile) (model.Stu
 	return file, nil
 }
 
+func (s *Store) DeleteFile(ctx context.Context, id string) error {
+	file, err := s.GetFile(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	commandTag, err := s.pool.Exec(ctx, `DELETE FROM study_files WHERE id = $1`, id)
+	if err != nil {
+		return fmt.Errorf("delete study file: %w", err)
+	}
+	if commandTag.RowsAffected() == 0 {
+		return model.ErrNotFound
+	}
+	if _, err := s.pool.Exec(ctx, `UPDATE titles SET updated_at = now() WHERE id = $1`, file.TitleID); err != nil {
+		return fmt.Errorf("touch title updated_at: %w", err)
+	}
+	s.logger.Info("study file metadata deleted", "id", id, "title_id", file.TitleID)
+	return nil
+}
+
 func (s *Store) ListFiles(ctx context.Context, titleID string) ([]model.StudyFile, error) {
 	rows, err := s.pool.Query(ctx, `SELECT id, title_id, filename, oss_key, size_bytes, content_type, updated_at, created_at FROM study_files WHERE title_id = $1 ORDER BY filename ASC`, titleID)
 	if err != nil {
